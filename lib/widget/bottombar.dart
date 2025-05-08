@@ -28,7 +28,6 @@ class _MainScreenState extends State<MainScreen> {
   void _initializePages() {
     _pages = [
       DashboardScreen(onTabSelected: _onTabSelected),
-      MessagesScreen(onTabSelected: _onTabSelected),
       OcrMedicineScanner(onTabSelected: _onTabSelected),
       ScheduleScreen(onTabSelected: _onTabSelected),
       UserManagementScreen(onTabSelected: _onTabSelected),
@@ -50,11 +49,6 @@ class _MainScreenState extends State<MainScreen> {
       SalomonBottomBarItem(
         icon: const Icon(Icons.dashboard),
         title: const Text("Dashboard"),
-        selectedColor: Colors.blue,
-      ),
-      SalomonBottomBarItem(
-        icon: const Icon(Icons.medication_rounded),
-        title: const Text("Message"),
         selectedColor: Colors.blue,
       ),
       SalomonBottomBarItem(

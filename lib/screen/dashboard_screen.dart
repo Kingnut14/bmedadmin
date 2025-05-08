@@ -12,14 +12,13 @@ import 'medicine_list_screen.dart';
 import '../widget/custom_app_bar.dart';
 import 'most_dispensed_screen.dart';
 // import '../widget/bottombar.dart';
-
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 import 'package:bmedv2/scanner/qr_scanner_screen.dart';
 
 class DashboardScreen extends StatefulWidget {
-  final Function (int) onTabSelected;
+  final Function(int) onTabSelected;
   const DashboardScreen({super.key, required this.onTabSelected});
-  
-
 
   @override
   _DashboardScreenState createState() => _DashboardScreenState();
@@ -27,13 +26,70 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   DateTime _selectedDay = DateTime.now();
-  // int _selectedIndex = 0;
+  List<Map<String, String>> medicines = [];
+  List<Map<String, String>> mostDispensedMedicine = [];
+  List<Map<String, dynamic>> backendSchedules = [];
+  bool isLoading = false;
 
-  // void _onItemTapped(int index) {
-  //   setState(() {
-  //     _selectedIndex = index;
-  //   });
-  // }
+  @override
+  void initState() {
+    super.initState();
+    _fetchMedicinesData();
+  }
+
+  // Fetch medicines data from the backend
+  Future<void> _fetchMedicinesData() async {
+    final response =
+        await http.get(Uri.parse('http://127.0.0.1:5566/dashboard'));
+
+    print(response.body);
+
+    if (response.statusCode == 200) {
+      final decoded = json.decode(response.body);
+      final data = decoded['data'] ?? {};
+
+      List<dynamic> availableMedicines = data['available_medicines'] ?? [];
+      List<dynamic> mostDispensedMedicines =
+          data['most_dispensed_medicines'] ?? [];
+      List<dynamic> schedules = data['schedules'] ?? [];
+
+      print("Most Dispensed Medicines: $mostDispensedMedicines");
+
+// Update your medicines list accordingly
+      setState(() {
+        medicines = availableMedicines
+            .map((item) => {
+                  'name': item['medicine_name']?.toString() ?? '',
+                  'quantity': item['stock']?.toString() ?? '0',
+                })
+            .toList()
+            .cast<Map<String, String>>();
+
+        backendSchedules = schedules
+            .map<Map<String, dynamic>>((item) => {
+                  'event': item['event'],
+                  'description': item['description'],
+                  'location': item['location'],
+                  'start_time': item['start_time'],
+                  'end_time': item['end_time'],
+                  'date': item['date'],
+                })
+            .toList();
+
+        mostDispensedMedicine = mostDispensedMedicines
+            .map<Map<String, String>>((item) => {
+                  'medicine_name': item['medicine_name'] ?? '',
+                  'total_quantity': item['total_quantity']?.toString() ?? '0',
+                })
+            .toList();
+            
+
+        isLoading = false;
+      });
+    } else {
+      throw Exception('Failed to load medicines');
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -49,7 +105,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       appBarTitle = "Messages";
     } else if (ModalRoute.of(context)?.settings.name == '/dashboard') {
       appBarTitle = "Dashboard";
-
     }
 
     return Scaffold(
@@ -58,12 +113,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
         fontSize: scaledFontSize,
         isDarkMode: themeProvider.isDarkMode,
       ),
-      backgroundColor: themeProvider.isDarkMode ? Colors.black : const Color(0xFF94C4ED),
+      backgroundColor:
+          themeProvider.isDarkMode ? Colors.black : const Color(0xFF94C4ED),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Column(
             children: [
-              _buildTotalMedicines(themeProvider, scaledFontSize, screenWidth),
+              isLoading
+                  ? Center(child: CircularProgressIndicator())
+                  : _buildTotalMedicines(
+                      themeProvider, scaledFontSize, screenWidth),
               _buildUpcomingSchedule(themeProvider, scaledFontSize),
               _buildTwoColumnLayout(themeProvider, scaledFontSize, screenWidth),
               _buildMostDispensedMedicines(themeProvider, scaledFontSize),
@@ -71,10 +130,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           ),
         ),
       ),
-      // bottomNavigationBar: MainScreen(
-      //   selectedIndex: _selectedIndex,
-      //   onItemTapped: _onItemTapped,
-      // ),
       floatingActionButton: FloatingActionButton(
         onPressed: () {
           Navigator.push(
@@ -89,43 +144,30 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-
-  // HEADER SECTION
-
-
   // Total Medicines Section
-  Widget _buildTotalMedicines(ThemeProvider themeProvider, double fontSize,
-      double screenWidth) {
-    List<Map<String, String>> medicines = [
-      {"name": "Paracetamol", "quantity": "50"},
-      {"name": "Ibuprofen", "quantity": "2"},
-      {"name": "Amoxicillin", "quantity": "120"},
-      {"name": "Vitamin C", "quantity": "100"},
-      {"name": "Loratadine", "quantity": "80"},
-      {"name": "Cough Syrup", "quantity": "30"},
-      {"name": "Cetirizine", "quantity": "20"},
-      {"name": "Myzcent", "quantity": "100"},
-    ];
+  Widget _buildTotalMedicines(
+    ThemeProvider themeProvider, double fontSize, double screenWidth) {
+  int totalQuantity = 0;
+  List<PieChartSectionData> sections = [];
+  List<Color> customColors = [
+    Colors.red,
+    Colors.green,
+    Colors.blue,
+    Colors.orange,
+    Colors.purple,
+    Colors.cyan,
+    Colors.yellow
+  ];
 
+  if (medicines.isNotEmpty) {
     medicines.sort((a, b) =>
         int.parse(b['quantity']!).compareTo(int.parse(a['quantity']!)));
 
     List<Map<String, String>> topMedicines = medicines.take(5).toList();
     List<Map<String, String>> otherMedicines = medicines.skip(5).toList();
 
-    int totalQuantity = medicines.fold(
-        0, (sum, med) => sum + int.parse(med['quantity']!));
-
-    List<PieChartSectionData> sections = [];
-    List<Color> customColors = [
-      Colors.red,
-      Colors.green,
-      Colors.blue,
-      Colors.orange,
-      Colors.purple,
-      Colors.cyan,
-      Colors.yellow
-    ];
+    totalQuantity =
+        medicines.fold(0, (sum, med) => sum + int.parse(med['quantity']!));
 
     for (int i = 0; i < topMedicines.length; i++) {
       int quantity = int.parse(topMedicines[i]['quantity']!);
@@ -134,7 +176,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       sections.add(PieChartSectionData(
         value: quantity.toDouble(),
         title: "${percentage.toStringAsFixed(1)}%",
-        radius: 60,
+        radius: medicines.length > 10 ? 50 : 60,
         titleStyle: const TextStyle(
             fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
         color: customColors[i % customColors.length],
@@ -142,177 +184,197 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     if (otherMedicines.isNotEmpty) {
-      int otherQuantity =
-      otherMedicines.fold(0, (sum, med) => sum + int.parse(med['quantity']!));
+      int otherQuantity = otherMedicines.fold(
+          0, (sum, med) => sum + int.parse(med['quantity']!));
       double percentage = (otherQuantity / totalQuantity) * 100;
 
       sections.add(PieChartSectionData(
         value: otherQuantity.toDouble(),
         title: "${percentage.toStringAsFixed(1)}%",
-        radius: 60,
+        radius: medicines.length > 10 ? 50 : 60,
         titleStyle: const TextStyle(
             fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
         color: Colors.grey,
       ));
     }
+  } else {
+    // If no data, show a single grey section with 100%
+    sections.add(PieChartSectionData(
+      value: 1, // dummy value to render the pie chart
+      title: "0%",
+      radius: 50,
+      titleStyle: const TextStyle(
+          fontSize: 12, fontWeight: FontWeight.bold, color: Colors.white),
+      color: Colors.grey.shade400,
+    ));
+  }
 
-    return Container(
-      margin: EdgeInsets.all(16),
-      padding: EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: themeProvider.isDarkMode ? const Color(0xFF1A1A2E) : Colors
-            .white,
-        borderRadius: BorderRadius.circular(12),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.blue.shade900,
-            blurRadius: 15,
-            offset: const Offset(0, 2),
+  return Container(
+    margin: EdgeInsets.all(16),
+    padding: EdgeInsets.all(16),
+    decoration: BoxDecoration(
+      color: themeProvider.isDarkMode ? const Color(0xFF1A1A2E) : Colors.white,
+      borderRadius: BorderRadius.circular(12),
+      boxShadow: [
+        BoxShadow(
+          color: Colors.blue.shade900,
+          blurRadius: 15,
+          offset: const Offset(0, 2),
+        ),
+      ],
+    ),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          "Total Medicines",
+          style: TextStyle(
+            fontSize: fontSize + 4,
+            fontWeight: FontWeight.bold,
+            color: themeProvider.isDarkMode ? Colors.white : Colors.black,
           ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            "Total Medicines",
-            style: TextStyle(
-              fontSize: fontSize + 4,
-              fontWeight: FontWeight.bold,
-              color: themeProvider.isDarkMode ? Colors.white : Colors.black,
-            ),
-          ),
-          const SizedBox(height: 16),
-          SizedBox(
-            height: 200,
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                PieChart(
-                  PieChartData(
-                    sections: sections,
-                    centerSpaceRadius: 40,
-                    sectionsSpace: 2,
-                  ),
+        ),
+        const SizedBox(height: 16),
+        SizedBox(
+          height: 200,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              PieChart(
+                PieChartData(
+                  sections: sections,
+                  centerSpaceRadius: 40,
+                  sectionsSpace: 2,
                 ),
-                Text(
-                  "$totalQuantity ",
-                  style: TextStyle(
-                    fontSize: fontSize + 6,
-                    fontWeight: FontWeight.bold,
-                    color: themeProvider.isDarkMode ? Colors.white : Colors
-                        .black,
-                  ),
+              ),
+              Text(
+                medicines.isEmpty ? "No data" : "$totalQuantity ",
+                style: TextStyle(
+                  fontSize: fontSize + 3,
+                  fontWeight: FontWeight.bold,
+                  color: themeProvider.isDarkMode ? Colors.white : Colors.black,
                 ),
-              ],
-            ),
+              ),
+            ],
           ),
-          const SizedBox(height: 16),
-          Text(
-            "Breakdown:",
-            style: TextStyle(
-              fontSize: fontSize + 2,
-              fontWeight: FontWeight.w600,
-              color: themeProvider.isDarkMode ? Colors.white : Colors.black,
-            ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          "Breakdown:",
+          style: TextStyle(
+            fontSize: fontSize + 2,
+            fontWeight: FontWeight.w600,
+            color: themeProvider.isDarkMode ? Colors.white : Colors.black,
           ),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 200,
-            child: ListView.builder(
-              itemCount: medicines.length,
-              itemBuilder: (context, index) {
-                final medicine = medicines[index];
-                Color color = (index < 5)
-                    ? customColors[index % customColors.length]
-                    : Colors.grey;
+        ),
+        const SizedBox(height: 8),
+        medicines.isEmpty
+            ? Text(
+                "No data available",
+                style: TextStyle(
+                  fontSize: fontSize,
+                  color: themeProvider.isDarkMode
+                      ? Colors.white70
+                      : Colors.black87,
+                ),
+              )
+            : ListView.builder(
+                shrinkWrap: true,
+                physics: NeverScrollableScrollPhysics(),
+                itemCount: medicines.length,
+                itemBuilder: (context, index) {
+                  final medicine = medicines[index];
+                  Color color = (index < 5)
+                      ? customColors[index % customColors.length]
+                      : Colors.grey;
 
-                return Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 2.0),
-                  child: GestureDetector(
-                    onTap: () {
-                      showDialog(
-                        context: context,
-                        builder: (BuildContext context) {
-                          return AlertDialog(
-                            title: Text(medicine['name']!),
-                            content: Text("Quantity: ${medicine['quantity']} "),
-                            actions: <Widget>[
-                              TextButton(
-                                onPressed: () => Navigator.of(context).pop(),
-                                child: const Text('Close'),
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 2.0),
+                    child: GestureDetector(
+                      onTap: () {
+                        showDialog(
+                          context: context,
+                          builder: (BuildContext context) {
+                            return AlertDialog(
+                              title: Text(medicine['name']!),
+                              content: Text("Quantity: ${medicine['quantity']} "),
+                              actions: <Widget>[
+                                TextButton(
+                                  onPressed: () =>
+                                      Navigator.of(context).pop(),
+                                  child: const Text('Close'),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      },
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          Row(
+                            children: [
+                              Container(
+                                width: 12,
+                                height: 12,
+                                margin: const EdgeInsets.only(right: 8),
+                                decoration: BoxDecoration(
+                                    color: color, shape: BoxShape.circle),
+                              ),
+                              Text(
+                                medicine['name']!,
+                                style: TextStyle(
+                                  fontSize: fontSize,
+                                  color: themeProvider.isDarkMode
+                                      ? Colors.white70
+                                      : Colors.black87,
+                                ),
                               ),
                             ],
-                          );
-                        },
-                      );
-                    },
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 12,
-                              height: 12,
-                              margin: const EdgeInsets.only(right: 8),
-                              decoration: BoxDecoration(
-                                  color: color, shape: BoxShape.circle),
-                            ),
-                            Text(
-                              medicine['name']!,
-                              style: TextStyle(
-                                fontSize: fontSize,
-                                color: themeProvider.isDarkMode
-                                    ? Colors.white70
-                                    : Colors.black87,
-                              ),
-                            ),
-                          ],
-                        ),
-                        Text(
-                          "${medicine['quantity']} pcs",
-                          style: TextStyle(
-                            fontWeight: FontWeight.bold,
-                            color: themeProvider.isDarkMode
-                                ? Colors.white
-                                : Colors.black,
                           ),
-                        ),
-                      ],
+                          Text(
+                            "${medicine['quantity']} pcs",
+                            style: TextStyle(
+                              fontWeight: FontWeight.bold,
+                              color: themeProvider.isDarkMode
+                                  ? Colors.white
+                                  : Colors.black,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+                  );
+                },
+              ),
+      ],
+    ),
+  );
+}
 
 
 // UPCOMING SCHEDULE SECTION
   Widget _buildUpcomingSchedule(ThemeProvider themeProvider, double fontSize) {
     final isDark = themeProvider.isDarkMode;
-    final backgroundColor = isDark ? const Color(0xFF1A1A2E) : const Color(0xFFE6F1F8);
+    final backgroundColor =
+        isDark ? const Color(0xFF1A1A2E) : const Color(0xFFE6F1F8);
     final cardColor = isDark ? const Color(0xFF2D2D3A) : Colors.white;
     final textColor = isDark ? Colors.white : Colors.black87;
     final fadedTextColor = isDark ? Colors.grey[400] : Colors.grey[600];
 
-    List<Map<String, dynamic>> allSchedules = [
-      {"date": DateTime(2025, 4, 16), "event": "Gamaro", "desc": "Tutulog"},
-      {"date": DateTime(2025, 4, 13), "event": "Meeting", "desc": "Team sync-up"},
-      {"date": DateTime(2025, 4, 16), "event": "Checkup", "desc": "Clinic visit"},
-      {"date": DateTime(2025, 6, 15), "event": "Checkup", "desc": "Clinic visit"},
-      {"date": DateTime(2025, 9, 30), "event": "Checkup", "desc": "Clinic visit"},
-    ];
+    List<Map<String, dynamic>> allSchedules = backendSchedules;
 
-    List<Map<String, dynamic>> schedules = allSchedules
-        .where((schedule) =>
-        schedule["date"].isAfter(DateTime.now().subtract(const Duration(days: 1))))
-        .toList()
-      ..sort((a, b) => a["date"].compareTo(b["date"]));
+    List<Map<String, dynamic>> schedules = allSchedules.where((schedule) {
+      // Parse the date string into DateTime before using isAfter
+      final scheduleDate = DateTime.parse(schedule["date"]);
+      return scheduleDate
+          .isAfter(DateTime.now().subtract(const Duration(days: 1)));
+    }).toList()
+      ..sort((a, b) {
+        final dateA = DateTime.parse(a["date"]);
+        final dateB = DateTime.parse(b["date"]);
+        return dateA.compareTo(dateB);
+      });
 
     List<DateTime> weekDays = List.generate(7, (index) {
       final today = DateTime.now();
@@ -325,18 +387,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     List<Map<String, String>> getEventsForDay(DateTime day) {
       return schedules
-          .where((schedule) => isSameDay(schedule["date"], day))
+          .where((schedule) => isSameDay(DateTime.parse(schedule["date"]), day))
           .map((schedule) => {
-        "event": schedule["event"].toString(),
-        "desc": schedule["desc"].toString(),
-      })
+                "event": schedule["event"].toString(),
+                "description": schedule["description"].toString(),
+              })
           .toList();
     }
 
     return StatefulBuilder(
       builder: (context, setState) {
-
-
         return Padding(
           padding: const EdgeInsets.symmetric(horizontal: 12.0),
           child: Container(
@@ -370,132 +430,143 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                     const SizedBox(height: 12),
 
-// Week day selector in a rounded white card
-Container(
-  margin: const EdgeInsets.symmetric(vertical: 10, horizontal: 16),
-  padding: const EdgeInsets.all(12),
-  decoration: BoxDecoration(
-    color: Colors.white,
-    borderRadius: BorderRadius.circular(20),
-    boxShadow: [
-      BoxShadow(
-        color: Colors.black.withOpacity(0.05),
-        blurRadius: 8,
-        offset: const Offset(0, 4),
-      ),
-    ],
-  ),
-  child: Row(
-    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-    children: weekDays.map((date) {
-      final isSelected = isSameDay(date, _selectedDay);
-      return Expanded(
-        child: GestureDetector(
-          onTap: () => setState(() => _selectedDay = date),
-          child: AnimatedContainer(
-            duration: const Duration(milliseconds: 200),
-            margin: const EdgeInsets.symmetric(horizontal: 4),
-            padding: const EdgeInsets.symmetric(vertical: 10),
-            decoration: BoxDecoration(
-              color: isSelected ? Colors.white : Colors.blue,
-              borderRadius: BorderRadius.circular(12),
-              boxShadow: isSelected
-                  ? [
-                      BoxShadow(
-                        color: Colors.black26,
-                        blurRadius: 6,
-                        offset: const Offset(0, 2),
-                      )
-                    ]
-                  : [],
-            ),
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Text(
-                  DateFormat.d().format(date),
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.bold,
-                    color: isSelected ? Colors.black : Colors.white,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  DateFormat.E().format(date).toUpperCase(),
-                  style: TextStyle(
-                    fontSize: 10,
-                    fontWeight: FontWeight.w500,
-                    color: isSelected ? Colors.black54 : Colors.white70,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      );
-    }).toList(),
-  ),
-),
+                    // Week day selector in a rounded white card
+                    Container(
+                      margin: const EdgeInsets.symmetric(
+                          vertical: 10, horizontal: 16),
+                      padding: const EdgeInsets.all(12),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(20),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.05),
+                            blurRadius: 8,
+                            offset: const Offset(0, 4),
+                          ),
+                        ],
+                      ),
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: weekDays.map((date) {
+                          final isSelected = isSameDay(date, _selectedDay);
+                          return Expanded(
+                            child: GestureDetector(
+                              onTap: () => setState(() => _selectedDay = date),
+                              child: AnimatedContainer(
+                                duration: const Duration(milliseconds: 200),
+                                margin:
+                                    const EdgeInsets.symmetric(horizontal: 4),
+                                padding:
+                                    const EdgeInsets.symmetric(vertical: 10),
+                                decoration: BoxDecoration(
+                                  color:
+                                      isSelected ? Colors.white : Colors.blue,
+                                  borderRadius: BorderRadius.circular(12),
+                                  boxShadow: isSelected
+                                      ? [
+                                          BoxShadow(
+                                            color: Colors.black26,
+                                            blurRadius: 6,
+                                            offset: const Offset(0, 2),
+                                          )
+                                        ]
+                                      : [],
+                                ),
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: [
+                                    Text(
+                                      DateFormat.d().format(date),
+                                      style: TextStyle(
+                                        fontSize: 14,
+                                        fontWeight: FontWeight.bold,
+                                        color: isSelected
+                                            ? Colors.black
+                                            : Colors.white,
+                                      ),
+                                    ),
+                                    const SizedBox(height: 4),
+                                    Text(
+                                      DateFormat.E().format(date).toUpperCase(),
+                                      style: TextStyle(
+                                        fontSize: 10,
+                                        fontWeight: FontWeight.w500,
+                                        color: isSelected
+                                            ? Colors.black54
+                                            : Colors.white70,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        }).toList(),
+                      ),
+                    ),
 
-
-
-    const SizedBox(height: 12),
+                    const SizedBox(height: 12),
 
                     // Events of the selected day
                     Builder(builder: (context) {
                       final events = getEventsForDay(_selectedDay);
                       return events.isNotEmpty
                           ? Column(
-                        children: events.map((event) {
-                          return Container(
-                            margin: const EdgeInsets.only(bottom: 8),
-                            padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              color: cardColor,
-                              borderRadius: BorderRadius.circular(10),
-                              boxShadow: const [
-                                BoxShadow(
-                                  color: Colors.black12,
-                                  blurRadius: 6,
-                                  offset: Offset(0, 3),
-                                ),
-                              ],
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(FeatherIcons.clock, size: 20, color: Colors.blue[700]),
-                                const SizedBox(width: 15),
-                                Expanded(
-                                  child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
-                                    children: [
-                                      Text(
-                                        event['event']!,
-                                        style: TextStyle(
-                                            fontSize: fontSize,
-                                            fontWeight: FontWeight.bold,
-                                            color: textColor),
-                                      ),
-                                      const SizedBox(height: 4),
-                                      Text(
-                                        event['desc']!,
-                                        style: TextStyle(fontSize: fontSize - 2, color: fadedTextColor),
+                              children: events.map((event) {
+                                return Container(
+                                  margin: const EdgeInsets.only(bottom: 8),
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: cardColor,
+                                    borderRadius: BorderRadius.circular(10),
+                                    boxShadow: const [
+                                      BoxShadow(
+                                        color: Colors.black12,
+                                        blurRadius: 6,
+                                        offset: Offset(0, 3),
                                       ),
                                     ],
                                   ),
-                                ),
-                              ],
-                            ),
-                          );
-                        }).toList(),
-                      )
+                                  child: Row(
+                                    children: [
+                                      Icon(FeatherIcons.clock,
+                                          size: 20, color: Colors.blue[700]),
+                                      const SizedBox(width: 15),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(
+                                              event['event']!,
+                                              style: TextStyle(
+                                                  fontSize: fontSize,
+                                                  fontWeight: FontWeight.bold,
+                                                  color: textColor),
+                                            ),
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              event['description']!,
+                                              style: TextStyle(
+                                                  fontSize: fontSize - 2,
+                                                  color: fadedTextColor),
+                                            ),
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                );
+                              }).toList(),
+                            )
                           : Center(
-                        child: Text(
-                          'No events for this day.',
-                          style: TextStyle(fontSize: fontSize, color: fadedTextColor),
-                        ),
-                      );
+                              child: Text(
+                                'No events for this day.',
+                                style: TextStyle(
+                                    fontSize: fontSize, color: fadedTextColor),
+                              ),
+                            );
                     }),
 
                     const SizedBox(height: 16),
@@ -503,7 +574,10 @@ Container(
                     // Scrollable Upcoming events
                     Text(
                       "All Upcoming Events",
-                      style: TextStyle(fontSize: fontSize + 2, fontWeight: FontWeight.w700, color: textColor),
+                      style: TextStyle(
+                          fontSize: fontSize + 2,
+                          fontWeight: FontWeight.w700,
+                          color: textColor),
                     ),
                     const SizedBox(height: 8),
 
@@ -520,21 +594,27 @@ Container(
                                 color: cardColor,
                                 borderRadius: BorderRadius.circular(10),
                                 boxShadow: const [
-                                  BoxShadow(color: Colors.black12, blurRadius: 6, offset: Offset(0, 3)),
+                                  BoxShadow(
+                                      color: Colors.black12,
+                                      blurRadius: 6,
+                                      offset: Offset(0, 3)),
                                 ],
                               ),
                               child: Row(
                                 children: [
-                                  Icon(FeatherIcons.calendar, size: 20, color: Colors.blue[700]),
+                                  Icon(FeatherIcons.calendar,
+                                      size: 20, color: Colors.blue[700]),
                                   const SizedBox(width: 8),
                                   Expanded(
                                     child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
                                       children: [
                                         Text(
-                                          DateFormat.yMMMMd().format(event['date']),
+                                          DateFormat.yMMMMd().format(
+                                              DateTime.parse(event['date'])),
                                           style: TextStyle(
-                                              fontSize: fontSize  -1,
+                                              fontSize: fontSize - 1,
                                               fontWeight: FontWeight.bold,
                                               color: textColor),
                                         ),
@@ -542,11 +622,15 @@ Container(
                                         Text(
                                           event['event'],
                                           style: TextStyle(
-                                              fontSize: fontSize, fontWeight: FontWeight.w600, color: textColor),
+                                              fontSize: fontSize,
+                                              fontWeight: FontWeight.w600,
+                                              color: textColor),
                                         ),
                                         Text(
-                                          event['desc'],
-                                          style: TextStyle(fontSize: fontSize - 2, color: fadedTextColor),
+                                          event['description'],
+                                          style: TextStyle(
+                                              fontSize: fontSize - 2,
+                                              color: fadedTextColor),
                                         ),
                                       ],
                                     ),
@@ -569,7 +653,8 @@ Container(
   }
 
   // Two Column Layout
-  Widget _buildTwoColumnLayout(ThemeProvider themeProvider, double fontSize, double screenWidth) {
+  Widget _buildTwoColumnLayout(
+      ThemeProvider themeProvider, double fontSize, double screenWidth) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 25.0, vertical: 10.0),
       child: Column(
@@ -621,7 +706,8 @@ Container(
     );
   }
 
-  Widget _buildQuickActionButton(ThemeProvider themeProvider, double fontSize, String label, IconData icon, Widget destinationScreen) {
+  Widget _buildQuickActionButton(ThemeProvider themeProvider, double fontSize,
+      String label, IconData icon, Widget destinationScreen) {
     return GestureDetector(
       onTap: () {
         Navigator.push(
@@ -633,7 +719,9 @@ Container(
         margin: const EdgeInsets.symmetric(vertical: 8),
         padding: const EdgeInsets.symmetric(vertical: 24),
         decoration: BoxDecoration(
-          color: themeProvider.isDarkMode ? Colors.grey[900] : Colors.blue.shade300,
+          color: themeProvider.isDarkMode
+              ? Colors.grey[900]
+              : Colors.blue.shade300,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
@@ -663,17 +751,9 @@ Container(
     );
   }
 
-
   // Most Dispensed Medicines Section
-  Widget _buildMostDispensedMedicines(ThemeProvider themeProvider,
-      double fontSize) {
-    List<Map<String, String>> mostDispensedMedicines = [
-      {"name": "Ibuprofen", "quantity": "150"},
-      {"name": "Amoxicillin", "quantity": "120"},
-      {"name": "Paracetamol", "quantity": "100"},
-      {"name": "Loratadine", "quantity": "80"},
-      {"name": "Ciprofloxacin", "quantity": "60"},
-    ];
+  Widget _buildMostDispensedMedicines(
+      ThemeProvider themeProvider, double fontSize) {
 
     final bool isDark = themeProvider.isDarkMode;
     final Color textColor = isDark ? Colors.white : Colors.black87;
@@ -731,53 +811,52 @@ Container(
 
                       // Medicine List
                       Column(
-                        children: mostDispensedMedicines
-                            .map((med) =>
-                            Column(
-                              children: [
-                                Row(
-                                  mainAxisAlignment:
-                                  MainAxisAlignment.spaceBetween,
+                        children: mostDispensedMedicine
+                            .map((med) => Column(
                                   children: [
-                                    Expanded(
-                                      child: Text(
-                                        med['name']!,
-                                        style: TextStyle(
-                                          fontSize: fontSize,
-                                          color: textColor,
+                                    Row(
+                                      mainAxisAlignment:
+                                          MainAxisAlignment.spaceBetween,
+                                      children: [
+                                        Expanded(
+                                          child: Text(
+                                            med['medicine_name']!,
+                                            style: TextStyle(
+                                              fontSize: fontSize,
+                                              color: textColor,
+                                            ),
+                                            overflow: TextOverflow.ellipsis,
+                                          ),
                                         ),
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-                                    const SizedBox(width: 10),
-                                    Container(
-                                      padding: const EdgeInsets.symmetric(
-                                          horizontal: 10, vertical: 4),
-                                      decoration: BoxDecoration(
-                                        color: isDark
-                                            ? Colors.white12
-                                            : Colors.grey.shade100,
-                                        borderRadius:
-                                        BorderRadius.circular(8),
-                                      ),
-                                      child: Text(
-                                        med['quantity']!,
-                                        style: TextStyle(
-                                          fontSize: fontSize - 1,
-                                          fontWeight: FontWeight.bold,
-                                          color: isDark
-                                              ? Colors.cyanAccent
-                                              : Colors.blueAccent,
+                                        const SizedBox(width: 10),
+                                        Container(
+                                          padding: const EdgeInsets.symmetric(
+                                              horizontal: 10, vertical: 4),
+                                          decoration: BoxDecoration(
+                                            color: isDark
+                                                ? Colors.white12
+                                                : Colors.grey.shade100,
+                                            borderRadius:
+                                                BorderRadius.circular(8),
+                                          ),
+                                          child: Text(
+                                            med['total_quantity']!,
+                                            style: TextStyle(
+                                              fontSize: fontSize - 1,
+                                              fontWeight: FontWeight.bold,
+                                              color: isDark
+                                                  ? Colors.cyanAccent
+                                                  : Colors.blueAccent,
+                                            ),
+                                          ),
                                         ),
-                                      ),
+                                      ],
                                     ),
+                                    const SizedBox(height: 8),
+                                    Divider(color: dividerColor, thickness: 1),
+                                    const SizedBox(height: 8),
                                   ],
-                                ),
-                                const SizedBox(height: 8),
-                                Divider(color: dividerColor, thickness: 1),
-                                const SizedBox(height: 8),
-                              ],
-                            ))
+                                ))
                             .toList(),
                       ),
                     ],

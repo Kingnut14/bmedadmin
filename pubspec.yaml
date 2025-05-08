@@ -49,6 +49,7 @@ dependencies:
   google_fonts: ^6.2.1
   mobile_scanner: ^6.0.10
   salomon_bottom_bar: ^3.3.2
+  http: ^1.4.0
 
 dev_dependencies:
   flutter_test:

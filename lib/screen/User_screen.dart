@@ -1,16 +1,13 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 import '../provider/theme_provider.dart';
 import '../provider/unread_count_provider.dart';
 import '../widget/custom_app_bar.dart';
-// import '../widget/custom_nav_bar.dart';
-// import 'dashboard_screen.dart';
-// import 'message_screen.dart';
-// import 'schedule_screen.dart';
-// import 'ocr_medicine_scanner.dart';
 
 class UserManagementScreen extends StatefulWidget {
-  final Function (int) onTabSelected;
+  final Function(int) onTabSelected;
   const UserManagementScreen({super.key, required this.onTabSelected});
 
   @override
@@ -18,57 +15,10 @@ class UserManagementScreen extends StatefulWidget {
 }
 
 class _UserManagementScreenState extends State<UserManagementScreen> {
-  // int _selectedIndex = 4;
   String searchQuery = '';
   String filterOption = 'All';
 
-  final List<Map<String, String>> users = [
-    {
-      'first_name': 'John',
-      'last_name': 'Doe',
-      'age': '25',
-      'sex': 'Male',
-      'barangay_id': '001',
-      'street': 'Main St',
-      'phone_number': '09123456789',
-    },
-    {
-      'first_name': 'Jane',
-      'last_name': 'Smith',
-      'age': '30',
-      'sex': 'Female',
-      'barangay_id': '002',
-      'street': '2nd Ave',
-      'phone_number': '09198765432',
-    },
-    {
-      'first_name': 'Alice',
-      'last_name': 'Johnson',
-      'age': '22',
-      'sex': 'Female',
-      'barangay_id': '003',
-      'street': '3rd Ave',
-      'phone_number': '09223334455',
-    },
-    {
-      'first_name': 'Bob',
-      'last_name': 'Brown',
-      'age': '40',
-      'sex': 'Male',
-      'barangay_id': '004',
-      'street': 'Elm St',
-      'phone_number': '09112223344',
-    },
-    {
-      'first_name': 'Charlie',
-      'last_name': 'Davis',
-      'age': '35',
-      'sex': 'Male',
-      'barangay_id': '005',
-      'street': 'Pine St',
-      'phone_number': '09224445566',
-    },
-  ];
+  List<Map<String, String>> users = [];
 
   late TextEditingController ageController;
   late TextEditingController sexController;
@@ -85,6 +35,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     barangayIdController = TextEditingController();
     streetController = TextEditingController();
     phoneController = TextEditingController();
+    _fetchUsers();
   }
 
   @override
@@ -98,25 +49,90 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     super.dispose();
   }
 
-  List<Map<String, String>> _filterUsers() {
-    List<Map<String, String>> result = users.where((user) {
-      final name = '${user['first_name']} ${user['last_name']}'.toLowerCase();
-      final matchesQuery = user['barangay_id']!.toLowerCase().contains(
-          searchQuery.toLowerCase()) ||
-          name.contains(searchQuery.toLowerCase());
+  // Function to fetch users from the backend API
+  Future<void> _fetchUsers() async {
+    try {
+      final response = await http.get(Uri.parse('http://127.0.0.1:5566/users'));
 
-      if (filterOption == 'Male' || filterOption == 'Female') {
-        return matchesQuery && user['sex'] == filterOption;
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+
+        if (data['retCode'] == "200" && data['data'] != null) {
+          final List<Map<String, String>> loadedUsers = [];
+
+          for (var user in data['data']) {
+            loadedUsers.add({
+              'first_name': user['first_name'].toString(),
+              'last_name': user['last_name'].toString(),
+              'age': user['age'].toString(),
+              'sex': user['sex'].toString(),
+              'brgy_id': user['brgy_id'].toString(),
+              'street': user['street'].toString(),
+              'phone_number': user['phone_number'].toString(),
+            });
+          }
+
+          setState(() {
+            users = loadedUsers;
+          });
+        } else {
+          _showErrorDialog('No users found.');
+        }
+      } else {
+        _showErrorDialog(
+          'Failed to fetch users. Status code: ${response.statusCode}',
+        );
       }
-      return matchesQuery;
-    }).toList();
+    } catch (e) {
+      _showErrorDialog('An error occurred: $e');
+    }
+  }
+
+  void _showErrorDialog(String message) {
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          title: const Text('Error'),
+          content: Text(message),
+          actions: [
+            TextButton(
+              child: const Text('OK'),
+              onPressed: () {
+                Navigator.of(context).pop();
+              },
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  List<Map<String, String>> _filterUsers() {
+    List<Map<String, String>> result =
+        users.where((user) {
+          final name =
+              '${user['first_name']} ${user['last_name']}'.toLowerCase();
+          final matchesQuery =
+              user['brgy_id']!.toLowerCase().contains(
+                searchQuery.toLowerCase(),
+              ) ||
+              name.contains(searchQuery.toLowerCase());
+
+          if (filterOption == 'Male' || filterOption == 'Female') {
+            return matchesQuery && user['sex'] == filterOption;
+          }
+          return matchesQuery;
+        }).toList();
 
     if (filterOption == 'Youngest') {
-      result.sort((a, b) =>
-          int.parse(a['age']!).compareTo(int.parse(b['age']!)));
+      result.sort(
+        (a, b) => int.parse(a['age']!).compareTo(int.parse(b['age']!)),
+      );
     } else if (filterOption == 'Oldest') {
-      result.sort((a, b) =>
-          int.parse(b['age']!).compareTo(int.parse(a['age']!)));
+      result.sort(
+        (a, b) => int.parse(b['age']!).compareTo(int.parse(a['age']!)),
+      );
     }
 
     return result;
@@ -126,9 +142,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   Widget build(BuildContext context) {
     final themeProvider = Provider.of<ThemeProvider>(context);
     final bool isDarkMode = themeProvider.isDarkMode;
-    final unreadCount = Provider
-        .of<UnreadCountProvider>(context)
-        .unreadCount;
+    final unreadCount = Provider.of<UnreadCountProvider>(context).unreadCount;
 
     final List<Map<String, String>> filteredUsers = _filterUsers();
 
@@ -160,29 +174,6 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           ],
         ),
       ),
-      // bottomNavigationBar: CustomNavBar(
-      //   selectedIndex: _selectedIndex,
-      //   onItemTapped: (index) {
-      //     setState(() {
-      //       _selectedIndex = index;
-      //     });
-
-      //     final screens = [
-      //       DashboardScreen(),
-      //       MessagesScreen(),
-      //       OcrMedicineScanner(),
-      //       ScheduleScreen(),
-      //       UserManagementScreen(),
-      //     ];
-
-      //     if (index < screens.length) {
-      //       Navigator.pushReplacement(
-      //         context,
-      //         MaterialPageRoute(builder: (_) => screens[index]),
-      //       );
-      //     }
-      //   },
-      // ),
     );
   }
 
@@ -198,7 +189,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 hintText: 'Search...',
                 prefixIcon: const Icon(Icons.search),
                 border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(30)),
+                  borderRadius: BorderRadius.circular(30),
+                ),
                 filled: true,
                 fillColor: isDarkMode ? Colors.grey[850] : Colors.white,
               ),
@@ -206,8 +198,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
           ),
           const SizedBox(width: 16),
           PopupMenuButton<String>(
-            icon: Icon(Icons.filter_list,
-                color: isDarkMode ? Colors.white : Colors.black),
+            icon: Icon(
+              Icons.filter_list,
+              color: isDarkMode ? Colors.white : Colors.black,
+            ),
             onSelected: (value) {
               setState(() {
                 filterOption = value;
@@ -216,7 +210,9 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
             itemBuilder: (context) {
               return [
                 PopupMenuItem<String>(
-                    value: 'Youngest', child: Text('Youngest')),
+                  value: 'Youngest',
+                  child: Text('Youngest'),
+                ),
                 PopupMenuItem<String>(value: 'Oldest', child: Text('Oldest')),
                 PopupMenuItem<String>(value: 'Male', child: Text('Male')),
                 PopupMenuItem<String>(value: 'Female', child: Text('Female')),
@@ -264,8 +260,10 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 ],
               ),
             ),
-            Icon(Icons.info_outline,
-                color: isDarkMode ? Colors.white : Colors.black),
+            Icon(
+              Icons.info_outline,
+              color: isDarkMode ? Colors.white : Colors.black,
+            ),
           ],
         ),
       ),
@@ -275,7 +273,7 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
   void _showUserDetailsOverlay(Map<String, String> user) {
     ageController.text = user['age'] ?? '';
     sexController.text = user['sex'] ?? '';
-    barangayIdController.text = user['barangay_id'] ?? '';
+    barangayIdController.text = user['brgy_id'] ?? '';
     streetController.text = user['street'] ?? '';
     phoneController.text = user['phone_number'] ?? '';
 
@@ -296,14 +294,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                 children: [
                   ConstrainedBox(
                     constraints: BoxConstraints(
-                      maxHeight: MediaQuery
-                          .of(context)
-                          .size
-                          .height * 1.8,
-                      maxWidth: MediaQuery
-                          .of(context)
-                          .size
-                          .width * 1.9,
+                      maxHeight: MediaQuery.of(context).size.height * 1.8,
+                      maxWidth: MediaQuery.of(context).size.width * 1.9,
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(24.0),
@@ -315,8 +307,11 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             Center(
                               child: CircleAvatar(
                                 radius: 60,
-                                child: const Icon(Icons.person, size: 70,
-                                    color: Colors.white),
+                                child: const Icon(
+                                  Icons.person,
+                                  size: 70,
+                                  color: Colors.white,
+                                ),
                                 backgroundColor: theme.colorScheme.primary,
                               ),
                             ),
@@ -334,39 +329,62 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
                             Row(
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               children: [
-                                Expanded(child: _buildTextField(
-                                    'Age', ageController, Icons.calendar_today,
-                                    theme)),
+                                Expanded(
+                                  child: _buildTextField(
+                                    'Age',
+                                    ageController,
+                                    Icons.calendar_today,
+                                    theme,
+                                  ),
+                                ),
                                 const SizedBox(width: 12),
-                                Expanded(child: _buildTextField(
-                                    'Sex', sexController, Icons.transgender,
-                                    theme)),
+                                Expanded(
+                                  child: _buildTextField(
+                                    'Sex',
+                                    sexController,
+                                    Icons.transgender,
+                                    theme,
+                                  ),
+                                ),
                               ],
                             ),
                             const SizedBox(height: 16),
-                            _buildTextField('Brgy ID', barangayIdController,
-                                Icons.location_on, theme),
-                            const SizedBox(height: 12),
                             _buildTextField(
-                                'Street', streetController, Icons.streetview,
-                                theme),
-                            const SizedBox(height: 12),
+                              'Barangay',
+                              barangayIdController,
+                              Icons.home,
+                              theme,
+                            ),
+                            const SizedBox(height: 16),
                             _buildTextField(
-                                'Phone Number', phoneController, Icons.phone,
-                                theme),
-                            const SizedBox(height: 24),
+                              'Street',
+                              streetController,
+                              Icons.streetview,
+                              theme,
+                            ),
+                            const SizedBox(height: 16),
+                            _buildTextField(
+                              'Phone',
+                              phoneController,
+                              Icons.phone,
+                              theme,
+                            ),
                           ],
                         ),
                       ),
                     ),
                   ),
                   Positioned(
-                    right: 0,
+                    top: 10,
+                    right: 10,
                     child: IconButton(
-                      icon: Icon(Icons.close, color: theme.iconTheme.color),
                       onPressed: () {
                         Navigator.of(context).pop();
                       },
+                      icon: Icon(
+                        Icons.close,
+                        color: isDark ? Colors.white : Colors.black,
+                      ),
                     ),
                   ),
                 ],
@@ -378,28 +396,25 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
     );
   }
 
-  Widget _buildTextField(String label, TextEditingController controller,
-      IconData icon, ThemeData theme) {
-    final isDark = theme.brightness == Brightness.dark;
-
+  Widget _buildTextField(
+    String label,
+    TextEditingController controller,
+    IconData icon,
+    ThemeData theme,
+  ) {
     return TextField(
       controller: controller,
-      readOnly: true, // Ensures the text field is read-only
-      style: TextStyle(
-        color: isDark ? Colors.white : Colors.black, // Text color
-      ),
+      enabled: false,
       decoration: InputDecoration(
+        icon: Icon(icon, color: theme.iconTheme.color),
         labelText: label,
-        labelStyle: TextStyle(
-          color: isDark ? Colors.white : Colors.black, // Label text color
+        labelStyle: TextStyle(color: theme.textTheme.bodyLarge?.color),
+        disabledBorder: OutlineInputBorder(
+          borderSide: BorderSide(color: theme.disabledColor),
+          borderRadius: BorderRadius.circular(12),
         ),
-        prefixIcon: Icon(icon, color: isDark ? Colors.white : Colors.black),
         filled: true,
-        fillColor: isDark ? Colors.grey[850] : Colors.white, // Background color
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(15),
-          borderSide: BorderSide.none,
-        ),
+        fillColor: theme.disabledColor.withOpacity(0.1),
       ),
     );
   }

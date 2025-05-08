@@ -1,4 +1,7 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
+import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
 // import 'package:bmedv2/widget/custom_nav_bar.dart';
 import 'package:table_calendar/table_calendar.dart';
@@ -56,7 +59,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                     const SizedBox(height: 20),
                     _buildTextField(_titleController, 'Event', isDarkMode),
                     const SizedBox(height: 15),
-                    _buildTextField(_locationController, 'Location', isDarkMode),
+                    _buildTextField(
+                      _locationController,
+                      'Location',
+                      isDarkMode,
+                    ),
                     const SizedBox(height: 15),
                     _buildTextField(
                       _descriptionController,
@@ -65,20 +72,17 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                       maxLines: 4,
                     ),
                     const SizedBox(height: 20),
-                    _buildSubmitButton(
-                      context,
-                          () {
-                        _submitSchedule(
-                          context,
-                          _titleController,
-                          _locationController,
-                          _descriptionController,
-                          _selectedDay,
-                          _startTime,
-                          _endTime,
-                        );
-                      },
-                    ),
+                    _buildSubmitButton(context, () {
+                      _submitSchedule(
+                        context,
+                        _titleController,
+                        _locationController,
+                        _descriptionController,
+                        _selectedDay,
+                        _startTime,
+                        _endTime,
+                      );
+                    }),
                   ],
                 ),
               ),
@@ -123,7 +127,11 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               onChanged: (selectedDate) {
                 if (selectedDate != null) {
                   setState(() {
-                    _selectedDay = DateTime(selectedDate.year, selectedDate.month, 1);
+                    _selectedDay = DateTime(
+                      selectedDate.year,
+                      selectedDate.month,
+                      1,
+                    );
                   });
                 }
               },
@@ -193,7 +201,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                     _endTime = pickedEnd.format(context);
                   });
                 } else {
-                  _showAlert(context, 'End Time must be later than Start Time.');
+                  _showAlert(
+                    context,
+                    'End Time must be later than Start Time.',
+                  );
                 }
               }
             }
@@ -263,14 +274,17 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     return endInMinutes > startInMinutes;
   }
 
-  Future<void> _submitSchedule(BuildContext context,
-      TextEditingController titleController,
-      TextEditingController locationController,
-      TextEditingController descriptionController,
-      DateTime selectedDay,
-      String? startTime,
-      String? endTime) async {
-    if (titleController.text.isEmpty || locationController.text.isEmpty ||
+  Future<void> _submitSchedule(
+    BuildContext context,
+    TextEditingController titleController,
+    TextEditingController locationController,
+    TextEditingController descriptionController,
+    DateTime selectedDay,
+    String? startTime,
+    String? endTime,
+  ) async {
+    if (titleController.text.isEmpty ||
+        locationController.text.isEmpty ||
         descriptionController.text.isEmpty) {
       _showAlert(context, 'Please fill in all fields.');
       return;
@@ -281,15 +295,54 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       return;
     }
 
-    // Submit logic
-    Navigator.pop(context);
+    final url = Uri.parse(
+      'http://127.0.0.1:5566/schedule/insert',
+    ); // adjust to your Go Fiber endpoint
+
+    final Map<String, dynamic> scheduleData = {
+      'event': titleController.text.trim(),
+      'description': descriptionController.text.trim(),
+      'date': selectedDay.toUtc().toIso8601String(),
+      'location': locationController.text.trim(),
+      'start_time': startTime,
+      'end_time': endTime,
+    };
+
+    try {
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: json.encode(scheduleData),
+      );
+
+      print('Response body: ${response.body}');
+
+      if (response.statusCode == 200) {
+        final responseData = json.decode(response.body);
+        if (responseData['retCode'] == '200') {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Schedule added successfully!')),
+          );
+          Navigator.pop(context);
+        } else {
+          _showAlert(
+            context,
+            responseData['message'] ?? 'Failed to add schedule.',
+          );
+        }
+      } else {
+        _showAlert(context, 'Server error: ${response.statusCode}');
+      }
+    } catch (e) {
+      _showAlert(context, 'Error: $e');
+    }
   }
 
   void _showAlert(BuildContext context, String message) {
     showDialog(
       context: context,
-      builder: (context) =>
-          AlertDialog(
+      builder:
+          (context) => AlertDialog(
             title: const Text('Error'),
             content: Text(message),
             actions: [
@@ -302,11 +355,12 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     );
   }
 
-  Widget _buildTextField(TextEditingController controller,
-      String label,
-      bool isDarkMode, {
-        int maxLines = 1,
-      }) {
+  Widget _buildTextField(
+    TextEditingController controller,
+    String label,
+    bool isDarkMode, {
+    int maxLines = 1,
+  }) {
     return TextField(
       controller: controller,
       decoration: InputDecoration(
@@ -320,9 +374,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   }
 
   Widget _buildSubmitButton(BuildContext context, VoidCallback onPressed) {
-    final isDarkMode = Theme
-        .of(context)
-        .brightness == Brightness.dark;
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return SizedBox(
       width: double.infinity,
@@ -336,15 +388,10 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             side: BorderSide(color: Colors.blueAccent),
             borderRadius: BorderRadius.circular(12),
           ),
-          elevation: 3,
         ),
-        child: const Text(
-          'Submit',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.w600,
-            letterSpacing: 0.5,
-          ),
+        child: Text(
+          'Save Schedule',
+          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
         ),
       ),
     );

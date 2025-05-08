@@ -42,7 +42,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final response =
         await http.get(Uri.parse('http://127.0.0.1:5566/dashboard'));
 
-    print(response.body);
+    //print(response.body);
 
     if (response.statusCode == 200) {
       final decoded = json.decode(response.body);
@@ -53,7 +53,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           data['most_dispensed_medicines'] ?? [];
       List<dynamic> schedules = data['schedules'] ?? [];
 
-      print("Most Dispensed Medicines: $mostDispensedMedicines");
+      //print("Most Dispensed Medicines: $mostDispensedMedicines");
 
 // Update your medicines list accordingly
       setState(() {

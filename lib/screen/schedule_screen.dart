@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:intl/intl.dart';
-// import 'package:bmedv2/widget/custom_nav_bar.dart';
 import 'package:table_calendar/table_calendar.dart';
 
 import '../widget/custom_app_bar.dart';
@@ -90,13 +89,6 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
           ],
         ),
       ),
-      // bottomNavigationBar: CustomNavBar(
-      //   selectedIndex: 3, // Assuming 3 is the index of the current screen
-      //   onItemTapped: (index) {
-      //     // Handle navigation if necessary
-      //   },
-      //   onScanPressed: () {},
-      // ),
     );
   }
 
@@ -184,7 +176,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
             final TimeOfDay? pickedStart = await showTimePicker(
               context: context,
               initialTime: TimeOfDay.now(),
-              helpText: ' Start Time',
+              helpText: 'Start Time',
             );
 
             if (pickedStart != null) {
@@ -197,12 +189,19 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
               if (pickedEnd != null) {
                 if (_isEndTimeAfterStartTime(pickedStart, pickedEnd)) {
                   setState(() {
-                    _startTime = pickedStart.format(context);
-                    _endTime = pickedEnd.format(context);
+                    // Format time as hh:mm AM/PM
+                    final now = DateTime.now();
+                    _startTime = DateFormat('hh:mm a').format(
+                      DateTime(now.year, now.month, now.day, pickedStart.hour, pickedStart.minute),
+                    );
+                    _endTime = DateFormat('hh:mm a').format(
+                      DateTime(now.year, now.month, now.day, pickedEnd.hour, pickedEnd.minute),
+                    );
                   });
                 } else {
                   _showAlert(
                     context,
+                    'Invalid Time Range',
                     'End Time must be later than Start Time.',
                   );
                 }
@@ -286,18 +285,16 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     if (titleController.text.isEmpty ||
         locationController.text.isEmpty ||
         descriptionController.text.isEmpty) {
-      _showAlert(context, 'Please fill in all fields.');
+      _showAlert(context, 'Error', 'Please fill in all fields.');
       return;
     }
 
     if (startTime == null || endTime == null) {
-      _showAlert(context, 'Please select a valid time range.');
+      _showAlert(context, 'Error', 'Please select a valid time range.');
       return;
     }
 
-    final url = Uri.parse(
-      'http://127.0.0.1:5566/schedule/insert',
-    ); // adjust to your Go Fiber endpoint
+    final url = Uri.parse('http://127.0.0.1:5566/schedule/insert');
 
     final Map<String, dynamic> scheduleData = {
       'event': titleController.text.trim(),
@@ -319,39 +316,43 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
       if (response.statusCode == 200) {
         final responseData = json.decode(response.body);
-        if (responseData['retCode'] == '200') {
+        if (responseData['retCode'] == '201') {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Schedule added successfully!')),
           );
-          Navigator.pop(context);
+          _showAlert(context, 'Success', 'Schedule added successfully!');
         } else {
           _showAlert(
             context,
+            'Error',
             responseData['message'] ?? 'Failed to add schedule.',
           );
         }
       } else {
-        _showAlert(context, 'Server error: ${response.statusCode}');
+        _showAlert(
+          context,
+          'Server Error',
+          'Server error: ${response.statusCode}',
+        );
       }
     } catch (e) {
-      _showAlert(context, 'Error: $e');
+      _showAlert(context, 'Error', 'Error: $e');
     }
   }
 
-  void _showAlert(BuildContext context, String message) {
+  void _showAlert(BuildContext context, String title, String message) {
     showDialog(
       context: context,
-      builder:
-          (context) => AlertDialog(
-            title: const Text('Error'),
-            content: Text(message),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text('OK'),
-              ),
-            ],
+      builder: (context) => AlertDialog(
+        title: Text(title),
+        content: Text(message),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('OK'),
           ),
+        ],
+      ),
     );
   }
 
@@ -363,13 +364,13 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
   }) {
     return TextField(
       controller: controller,
+      maxLines: maxLines,
       decoration: InputDecoration(
         labelText: label,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
-        fillColor: isDarkMode ? Colors.grey[850] : Colors.white,
-        filled: true,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(12),
+        ),
       ),
-      maxLines: maxLines,
     );
   }
 

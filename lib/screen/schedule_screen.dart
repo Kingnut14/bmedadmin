@@ -1,35 +1,95 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:intl/intl.dart';
-import 'package:table_calendar/table_calendar.dart';
-
-import '../widget/custom_app_bar.dart';
+import 'package:bmedv2/widget/custom_app_bar.dart';
+import 'package:bmedv2/screen/schedule_Form_screen.dart'; // Import the ScheduleFormScreen
+import 'package:intl/intl.dart'; // Import intl package for date formatting
 
 class ScheduleScreen extends StatefulWidget {
-  final Function(int) onTabSelected;
-  const ScheduleScreen({super.key, required this.onTabSelected});
+  final void Function(int)? onTabSelected;
+
+  ScheduleScreen({this.onTabSelected});
 
   @override
-  State<ScheduleScreen> createState() => _ScheduleScreenState();
+  _ScheduleScreenState createState() => _ScheduleScreenState();
 }
 
 class _ScheduleScreenState extends State<ScheduleScreen> {
-  DateTime _selectedDay = DateTime.now();
-  String? _startTime;
-  String? _endTime;
-
-  final TextEditingController _titleController = TextEditingController();
-  final TextEditingController _locationController = TextEditingController();
-  final TextEditingController _descriptionController = TextEditingController();
+  List<Map<String, String>> events = [];
+  bool isLoading = true; // Ensure loading state starts as true
+  bool hasError = false;
 
   @override
-  void dispose() {
-    _titleController.dispose();
-    _locationController.dispose();
-    _descriptionController.dispose();
-    super.dispose();
+  void initState() {
+    super.initState();
+    fetchSchedules();
+  }
+
+  Future<void> fetchSchedules() async {
+    try {
+      final response = await http.get(
+        Uri.parse('http://127.0.0.1:5566/schedule'),
+      );
+      print(response.body); // Debugging: check raw response
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['retCode'] == '200') {
+          setState(() {
+            events = List<Map<String, String>>.from(
+              data['data'].map((event) {
+                return {
+                  "event":
+                      event["event"]?.toString() ?? "", // Ensure it's a string
+                  "details":
+                      event["description"]?.toString() ??
+                      "", // Ensure it's a string
+                  "date": formatDate(event["date"] ?? ""), // Format the date
+                  "start_time":
+                      event["start_time"]?.toString() ??
+                      "", // Ensure it's a string
+                  "end_time":
+                      event["end_time"]?.toString() ??
+                      "", // Ensure it's a string
+                };
+              }),
+            );
+            isLoading = false;
+            hasError = false;
+          });
+        } else {
+          setState(() {
+            isLoading = false;
+            hasError = true;
+          });
+        }
+      } else {
+        setState(() {
+          isLoading = false;
+          hasError = true;
+        });
+      }
+    } catch (e) {
+      print('Error: $e'); // Debugging: print error message
+      setState(() {
+        isLoading = false;
+        hasError = true;
+      });
+    }
+  }
+
+  // Function to format date
+  String formatDate(String dateString) {
+    try {
+      DateTime date = DateTime.parse(
+        dateString,
+      ); // Convert the string to DateTime
+      return DateFormat(
+        'MMMM d, yyyy',
+      ).format(date); // Format to "February 2, 2025"
+    } catch (e) {
+      return dateString; // Return original string if invalid date
+    }
   }
 
   @override
@@ -38,361 +98,252 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
 
     return Scaffold(
       appBar: CustomAppBar(
-        title: 'Schedule',
-        fontSize: 15,
+        title: "Barangay Announcements",
         isDarkMode: isDarkMode,
+        fontSize: 18,
       ),
-      body: SafeArea(
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(20),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    _buildCalendar(isDarkMode),
-                    const SizedBox(height: 20),
-                    _buildTimeRangeSelector(isDarkMode),
-                    const SizedBox(height: 20),
-                    _buildTextField(_titleController, 'Event', isDarkMode),
-                    const SizedBox(height: 15),
-                    _buildTextField(
-                      _locationController,
-                      'Location',
-                      isDarkMode,
-                    ),
-                    const SizedBox(height: 15),
-                    _buildTextField(
-                      _descriptionController,
-                      'Description',
-                      isDarkMode,
-                      maxLines: 4,
-                    ),
-                    const SizedBox(height: 20),
-                    _buildSubmitButton(context, () {
-                      _submitSchedule(
-                        context,
-                        _titleController,
-                        _locationController,
-                        _descriptionController,
-                        _selectedDay,
-                        _startTime,
-                        _endTime,
+      body:
+          isLoading
+              ? Center(child: CircularProgressIndicator())
+              : hasError
+              ? Center(child: Text('Failed to load events'))
+              : events.isEmpty
+              ? Center(child: Text('No events available'))
+              : ListView(
+                children:
+                    events.map((eventData) {
+                      return Padding(
+                        padding: const EdgeInsets.symmetric(
+                          vertical: 8.0,
+                          horizontal: 16.0,
+                        ),
+                        child: GestureDetector(
+                          onTap: () {
+                            // Show the event details in a modal dialog
+                            showDialog(
+                              context: context,
+                              builder: (BuildContext context) {
+                                return EventDetailModal(eventData: eventData);
+                              },
+                            );
+                          },
+                          child: Card(
+                            elevation: 10,
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(18),
+                            ),
+                            color:
+                                isDarkMode
+                                    ? Color(0xFF2C3E50)
+                                    : Color(0xFFE3F2FD),
+                            shadowColor: Colors.blueAccent.withOpacity(0.5),
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                vertical: 20.0,
+                                horizontal: 16.0,
+                              ),
+                              child: Row(
+                                children: [
+                                  Icon(
+                                    Icons.access_alarm,
+                                    color:
+                                        isDarkMode
+                                            ? Colors.white
+                                            : Colors.blueAccent,
+                                    size: 30,
+                                  ),
+                                  const SizedBox(width: 16),
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          eventData["event"]!,
+                                          style: TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w600,
+                                            color:
+                                                isDarkMode
+                                                    ? Colors.white
+                                                    : Colors.black87,
+                                          ),
+                                        ),
+                                        const SizedBox(height: 6),
+                                        Text(
+                                          eventData["date"]!,
+                                          style: TextStyle(
+                                            fontSize: 14,
+                                            fontWeight: FontWeight.w400,
+                                            color:
+                                                isDarkMode
+                                                    ? Colors.grey[400]
+                                                    : Colors.black54,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                          ),
+                        ),
                       );
-                    }),
-                  ],
-                ),
+                    }).toList(),
               ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  Widget _buildCalendar(bool isDarkMode) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Select Month & Year:',
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-                color: isDarkMode ? Colors.white : Colors.black87,
-              ),
-            ),
-            DropdownButton<DateTime>(
-              value: DateTime(_selectedDay.year, _selectedDay.month),
-              items: List.generate(12, (index) {
-                final date = DateTime(DateTime.now().year, index + 1);
-                return DropdownMenuItem(
-                  value: date,
-                  child: Text(DateFormat.yMMM().format(date)),
-                );
-              }),
-              onChanged: (selectedDate) {
-                if (selectedDate != null) {
-                  setState(() {
-                    _selectedDay = DateTime(
-                      selectedDate.year,
-                      selectedDate.month,
-                      1,
-                    );
-                  });
-                }
-              },
-            ),
-          ],
-        ),
-        const SizedBox(height: 16),
-        TableCalendar(
-          focusedDay: _selectedDay,
-          firstDay: DateTime.utc(2020, 1, 1),
-          lastDay: DateTime.utc(2030, 12, 31),
-          selectedDayPredicate: (day) => isSameDay(_selectedDay, day),
-          onDaySelected: (selectedDay, focusedDay) {
-            setState(() {
-              _selectedDay = selectedDay;
-            });
-          },
-          calendarStyle: CalendarStyle(
-            todayTextStyle: TextStyle(
-              color: isDarkMode ? Colors.white : Colors.black,
-            ),
-            selectedTextStyle: TextStyle(
-              color: isDarkMode ? Colors.black : Colors.white,
-            ),
-            selectedDecoration: BoxDecoration(
-              color: isDarkMode ? Colors.blueAccent : Colors.blue,
-              shape: BoxShape.circle,
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildTimeRangeSelector(bool isDarkMode) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Time Range for ${DateFormat.yMd().format(_selectedDay)}:',
-          style: TextStyle(
-            fontSize: 16,
-            fontWeight: FontWeight.bold,
-            color: isDarkMode ? Colors.blue : Colors.blue,
-          ),
-        ),
-        const SizedBox(height: 12),
-        GestureDetector(
-          onTap: () async {
-            final TimeOfDay? pickedStart = await showTimePicker(
-              context: context,
-              initialTime: TimeOfDay.now(),
-              helpText: 'Start Time',
-            );
-
-            if (pickedStart != null) {
-              final TimeOfDay? pickedEnd = await showTimePicker(
-                context: context,
-                initialTime: pickedStart,
-                helpText: 'End Time',
-              );
-
-              if (pickedEnd != null) {
-                if (_isEndTimeAfterStartTime(pickedStart, pickedEnd)) {
-                  setState(() {
-                    // Format time as hh:mm AM/PM
-                    final now = DateTime.now();
-                    _startTime = DateFormat('hh:mm a').format(
-                      DateTime(now.year, now.month, now.day, pickedStart.hour, pickedStart.minute),
-                    );
-                    _endTime = DateFormat('hh:mm a').format(
-                      DateTime(now.year, now.month, now.day, pickedEnd.hour, pickedEnd.minute),
-                    );
-                  });
-                } else {
-                  _showAlert(
-                    context,
-                    'Invalid Time Range',
-                    'End Time must be later than Start Time.',
-                  );
-                }
-              }
-            }
-          },
-          child: Container(
-            decoration: BoxDecoration(
-              color: isDarkMode ? Colors.grey[850] : Colors.white,
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: Colors.blue.shade500),
-            ),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Start Time',
-                      style: TextStyle(
-                        color: isDarkMode ? Colors.white54 : Colors.black54,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _startTime ?? '--:--',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: isDarkMode ? Colors.white70 : Colors.black87,
-                      ),
-                    ),
-                  ],
-                ),
-                Icon(Icons.arrow_forward, size: 24, color: Colors.blueAccent),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'End Time',
-                      style: TextStyle(
-                        color: isDarkMode ? Colors.white54 : Colors.black54,
-                        fontSize: 12,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      _endTime ?? '--:--',
-                      style: TextStyle(
-                        fontSize: 16,
-                        color: isDarkMode ? Colors.white70 : Colors.black87,
-                      ),
-                    ),
-                  ],
-                ),
-              ],
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  bool _isEndTimeAfterStartTime(TimeOfDay start, TimeOfDay end) {
-    final startInMinutes = start.hour * 60 + start.minute;
-    final endInMinutes = end.hour * 60 + end.minute;
-    return endInMinutes > startInMinutes;
-  }
-
-  Future<void> _submitSchedule(
-    BuildContext context,
-    TextEditingController titleController,
-    TextEditingController locationController,
-    TextEditingController descriptionController,
-    DateTime selectedDay,
-    String? startTime,
-    String? endTime,
-  ) async {
-    if (titleController.text.isEmpty ||
-        locationController.text.isEmpty ||
-        descriptionController.text.isEmpty) {
-      _showAlert(context, 'Error', 'Please fill in all fields.');
-      return;
-    }
-
-    if (startTime == null || endTime == null) {
-      _showAlert(context, 'Error', 'Please select a valid time range.');
-      return;
-    }
-
-    final url = Uri.parse('http://127.0.0.1:5566/schedule/insert');
-
-    final Map<String, dynamic> scheduleData = {
-      'event': titleController.text.trim(),
-      'description': descriptionController.text.trim(),
-      'date': selectedDay.toUtc().toIso8601String(),
-      'location': locationController.text.trim(),
-      'start_time': startTime,
-      'end_time': endTime,
-    };
-
-    try {
-      final response = await http.post(
-        url,
-        headers: {'Content-Type': 'application/json'},
-        body: json.encode(scheduleData),
-      );
-
-      print('Response body: ${response.body}');
-
-      if (response.statusCode == 200) {
-        final responseData = json.decode(response.body);
-        if (responseData['retCode'] == '201') {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Schedule added successfully!')),
-          );
-          _showAlert(context, 'Success', 'Schedule added successfully!');
-        } else {
-          _showAlert(
+      floatingActionButton: FloatingActionButton(
+        onPressed: () async {
+          final result = await Navigator.push(
             context,
-            'Error',
-            responseData['message'] ?? 'Failed to add schedule.',
+            MaterialPageRoute(
+              builder: (context) => ScheduleFormScreen(onTabSelected: (int) {}),
+            ),
           );
-        }
-      } else {
-        _showAlert(
-          context,
-          'Server Error',
-          'Server error: ${response.statusCode}',
-        );
-      }
-    } catch (e) {
-      _showAlert(context, 'Error', 'Error: $e');
-    }
-  }
 
-  void _showAlert(BuildContext context, String title, String message) {
-    showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: Text(title),
-        content: Text(message),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('OK'),
-          ),
-        ],
+          // Refresh the schedules if new data was added
+          if (result == true) {
+            fetchSchedules();
+          }
+        },
+
+        child: const Icon(Icons.add),
+        backgroundColor: Colors.blueAccent,
+        elevation: 8,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(15)),
       ),
     );
   }
+}
 
-  Widget _buildTextField(
-    TextEditingController controller,
-    String label,
-    bool isDarkMode, {
-    int maxLines = 1,
-  }) {
-    return TextField(
-      controller: controller,
-      maxLines: maxLines,
-      decoration: InputDecoration(
-        labelText: label,
-        border: OutlineInputBorder(
-          borderRadius: BorderRadius.circular(12),
-        ),
-      ),
-    );
-  }
+class EventDetailModal extends StatelessWidget {
+  final Map<String, String> eventData;
 
-  Widget _buildSubmitButton(BuildContext context, VoidCallback onPressed) {
+  EventDetailModal({required this.eventData});
+
+  @override
+  Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
-    return SizedBox(
-      width: double.infinity,
-      child: ElevatedButton(
-        onPressed: onPressed,
-        style: ElevatedButton.styleFrom(
-          backgroundColor: isDarkMode ? Colors.blueAccent : Colors.blueAccent,
-          foregroundColor: Colors.white,
-          padding: const EdgeInsets.symmetric(vertical: 16),
-          shape: RoundedRectangleBorder(
-            side: BorderSide(color: Colors.blueAccent),
-            borderRadius: BorderRadius.circular(12),
-          ),
+    return Dialog(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(
+          20,
+        ), // Rounded corners for modern look
+      ),
+      elevation: 12,
+      backgroundColor: Colors.transparent,
+      child: Container(
+        padding: const EdgeInsets.all(24.0),
+        decoration: BoxDecoration(
+          color:
+              isDarkMode
+                  ? Color(0xFF2C3E50)
+                  : Colors.white, // Dark mode background color
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withOpacity(0.2),
+              spreadRadius: 5,
+              blurRadius: 10,
+            ),
+          ],
         ),
-        child: Text(
-          'Save Schedule',
-          style: TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              eventData["event"]!,
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.w700,
+                color:
+                    isDarkMode
+                        ? Colors.white
+                        : Colors.blueAccent, // Adjust text color for dark mode
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Date: ${eventData["date"]}',
+              style: TextStyle(
+                fontSize: 18,
+                color:
+                    isDarkMode
+                        ? Colors.grey[300]
+                        : Colors.grey[700], // Adjust color for dark mode
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Start Time: ${eventData["start_time"]}', // Show start time
+              style: TextStyle(
+                fontSize: 16,
+                color:
+                    isDarkMode
+                        ? Colors.white70
+                        : Colors.black87, // Adjust color for dark mode
+              ),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'End Time: ${eventData["end_time"]}', // Show end time
+              style: TextStyle(
+                fontSize: 16,
+                color:
+                    isDarkMode
+                        ? Colors.white70
+                        : Colors.black87, // Adjust color for dark mode
+              ),
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Details: ${eventData["details"]}',
+              style: TextStyle(
+                fontSize: 16,
+                color:
+                    isDarkMode
+                        ? Colors.white70
+                        : Colors.black87, // Adjust color for dark mode
+              ),
+            ),
+            const SizedBox(height: 24),
+            Center(
+              child: ElevatedButton(
+                onPressed: () {
+                  Navigator.of(context).pop(); // Close the modal
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: Colors.blueAccent,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 14,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(
+                      30,
+                    ), // More rounded corners for a sleek look
+                  ),
+                  textStyle: TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  shadowColor: Colors.blueAccent.withOpacity(
+                    0.3,
+                  ), // Subtle shadow effect
+                  elevation: 10, // Smooth elevation effect
+                ),
+                child: Text(
+                  'Close',
+                  style: TextStyle(
+                    color:
+                        Colors.white, // White text color for better visibility
+                  ),
+                ),
+              ),
+            ),
+          ],
         ),
       ),
     );

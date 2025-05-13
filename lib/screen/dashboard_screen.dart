@@ -15,6 +15,7 @@ import 'most_dispensed_screen.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
 import 'package:bmedv2/scanner/qr_scanner_screen.dart';
+import 'dart:async';
 
 class DashboardScreen extends StatefulWidget {
   final Function(int) onTabSelected;
@@ -29,12 +30,21 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Map<String, String>> medicines = [];
   List<Map<String, String>> mostDispensedMedicine = [];
   List<Map<String, dynamic>> backendSchedules = [];
+  Timer? _refreshTimer;
+
   bool isLoading = false;
 
   @override
   void initState() {
     super.initState();
     _fetchMedicinesData();
+    _startAutoRefresh(); // 🔹 Add this line
+  }
+
+  @override
+  void dispose() {
+    _refreshTimer?.cancel(); // 🔹 Prevent memory leaks
+    super.dispose();
   }
 
   // Fetch medicines data from the backend
@@ -98,6 +108,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     } else {
       throw Exception('Failed to load medicines');
     }
+  }
+
+  void _startAutoRefresh() {
+    _refreshTimer = Timer.periodic(Duration(seconds: 3), (timer) {
+      _fetchMedicinesData();
+    });
   }
 
   @override

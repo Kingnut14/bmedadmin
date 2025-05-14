@@ -30,7 +30,6 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       final response = await http.get(
         Uri.parse('http://127.0.0.1:5566/schedule'),
       );
-      print(response.body); // Debugging: check raw response
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);

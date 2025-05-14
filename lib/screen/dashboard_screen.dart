@@ -31,6 +31,33 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Map<String, String>> mostDispensedMedicine = [];
   List<Map<String, dynamic>> backendSchedules = [];
   Timer? _refreshTimer;
+  String? selectedMonth;
+  String? selectedYear;
+  bool _showFilters = false;
+
+  List<String> months = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+
+  List<String> years = [
+    '2021',
+    '2022',
+    '2023',
+    '2024',
+    '2025',
+    '2026', // Add more years if necessary
+  ];
 
   bool isLoading = false;
 
@@ -49,11 +76,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // Fetch medicines data from the backend
   Future<void> _fetchMedicinesData() async {
-    final response = await http.get(
-      Uri.parse('http://127.0.0.1:5566/dashboard'),
-    );
+    String url = 'http://127.0.0.1:5566/dashboard';
 
-    //print(response.body);
+    if (selectedMonth != null && selectedYear != null) {
+      // Format the month and year as YYYY-MM
+      String formattedMonthYear =
+          '${selectedYear.toString().padLeft(4, '0')}-${selectedMonth.toString().padLeft(2, '0')}';
+      url += '?monthYear=$formattedMonthYear';
+    }
+
+    final response = await http.get(Uri.parse(url));
 
     if (response.statusCode == 200) {
       final decoded = json.decode(response.body);
@@ -64,9 +96,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           data['most_dispensed_medicines'] ?? [];
       List<dynamic> schedules = data['schedules'] ?? [];
 
-      //print("Most Dispensed Medicines: $mostDispensedMedicines");
-
-      // Update your medicines list accordingly
       setState(() {
         medicines =
             availableMedicines
@@ -125,7 +154,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     double screenWidth = MediaQuery.of(context).size.width;
     double scaledFontSize = fontSize + (screenWidth / 375);
 
-    String appBarTitle = "Baramed";
+    String appBarTitle = "BaraMed";
     if (ModalRoute.of(context)?.settings.name == '/messageScreen') {
       appBarTitle = "Messages";
     } else if (ModalRoute.of(context)?.settings.name == '/dashboard') {
@@ -144,6 +173,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
         child: SingleChildScrollView(
           child: Column(
             children: [
+              _buildMostDispensedMedicines(
+                themeProvider,
+                scaledFontSize,
+                screenWidth,
+              ),
+              _buildUpcomingSchedule(themeProvider, scaledFontSize),
               isLoading
                   ? Center(child: CircularProgressIndicator())
                   : _buildTotalMedicines(
@@ -151,9 +186,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     scaledFontSize,
                     screenWidth,
                   ),
-              _buildUpcomingSchedule(themeProvider, scaledFontSize),
+
               _buildTwoColumnLayout(themeProvider, scaledFontSize, screenWidth),
-              _buildMostDispensedMedicines(themeProvider, scaledFontSize),
             ],
           ),
         ),
@@ -172,8 +206,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Total Medicines Section
-  Widget _buildTotalMedicines(
+  // Most Dispensed Medicines Section
+  Widget _buildMostDispensedMedicines(
     ThemeProvider themeProvider,
     double fontSize,
     double screenWidth,
@@ -188,40 +222,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
       Colors.purple,
       Colors.cyan,
       Colors.yellow,
-      Colors.indigo, // Added Indigo color
-      Colors.teal, // Added Teal color
-      Colors.brown, // Added Brown color
-      Colors.grey, // Added Grey color
-      Colors.amber, // Added Amber color
-      Colors.lime, // Added Lime color
-      Colors.pink, // Added Pink color
-      Colors.deepPurple, // Added DeepPurple color
-      Colors.deepOrange, // Added DeepOrange color
+      Colors.indigo,
+      Colors.teal,
+      Colors.brown,
+      Colors.grey,
+      Colors.amber,
+      Colors.lime,
+      Colors.pink,
+      Colors.deepPurple,
+      Colors.deepOrange,
     ];
 
-    if (medicines.isNotEmpty) {
-      medicines.sort(
-        (a, b) =>
-            int.parse(b['quantity']!).compareTo(int.parse(a['quantity']!)),
+    if (mostDispensedMedicine.isNotEmpty) {
+      mostDispensedMedicine.sort(
+        (a, b) => int.parse(
+          b['total_quantity']!,
+        ).compareTo(int.parse(a['total_quantity']!)),
       );
 
-      List<Map<String, String>> topMedicines = medicines.take(10).toList();
-      List<Map<String, String>> otherMedicines = medicines.skip(10).toList();
+      List<Map<String, String>> topMedicines =
+          mostDispensedMedicine.take(10).toList();
+      List<Map<String, String>> otherMedicines =
+          mostDispensedMedicine.skip(10).toList();
 
-      totalQuantity = medicines.fold(
+      totalQuantity = mostDispensedMedicine.fold(
         0,
-        (sum, med) => sum + int.parse(med['quantity']!),
+        (sum, med) => sum + int.parse(med['total_quantity']!),
       );
 
       for (int i = 0; i < topMedicines.length; i++) {
-        int quantity = int.parse(topMedicines[i]['quantity']!);
+        int quantity = int.parse(topMedicines[i]['total_quantity']!);
         double percentage = (quantity / totalQuantity) * 100;
 
         sections.add(
           PieChartSectionData(
             value: quantity.toDouble(),
             title: "${percentage.toStringAsFixed(1)}%",
-            radius: medicines.length > 10 ? 50 : 60,
+            radius: mostDispensedMedicine.length > 10 ? 50 : 60,
             titleStyle: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
@@ -235,7 +272,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (otherMedicines.isNotEmpty) {
         int otherQuantity = otherMedicines.fold(
           0,
-          (sum, med) => sum + int.parse(med['quantity']!),
+          (sum, med) => sum + int.parse(med['total_quantity']!),
         );
         double percentage = (otherQuantity / totalQuantity) * 100;
 
@@ -243,7 +280,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           PieChartSectionData(
             value: otherQuantity.toDouble(),
             title: "${percentage.toStringAsFixed(1)}%",
-            radius: medicines.length > 10 ? 50 : 60,
+            radius: mostDispensedMedicine.length > 10 ? 50 : 60,
             titleStyle: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
@@ -254,10 +291,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         );
       }
     } else {
-      // If no data, show a single grey section with 100%
       sections.add(
         PieChartSectionData(
-          value: 1, // dummy value to render the pie chart
+          value: 1,
           title: "0%",
           radius: 50,
           titleStyle: const TextStyle(
@@ -289,7 +325,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            "Total Medicines",
+            "Dispensed Medicine",
             style: TextStyle(
               fontSize: fontSize + 4,
               fontWeight: FontWeight.bold,
@@ -310,7 +346,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
                 Text(
-                  medicines.isEmpty ? "No data" : "$totalQuantity ",
+                  mostDispensedMedicine.isEmpty ? "No data" : "$totalQuantity ",
                   style: TextStyle(
                     fontSize: fontSize + 3,
                     fontWeight: FontWeight.bold,
@@ -331,7 +367,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          medicines.isEmpty
+          mostDispensedMedicine.isEmpty
               ? Text(
                 "No data available",
                 style: TextStyle(
@@ -345,9 +381,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
               : ListView.builder(
                 shrinkWrap: true,
                 physics: NeverScrollableScrollPhysics(),
-                itemCount: medicines.length,
+                itemCount: mostDispensedMedicine.length,
                 itemBuilder: (context, index) {
-                  final medicine = medicines[index];
+                  final medicine = mostDispensedMedicine[index];
                   Color color =
                       (index < 10)
                           ? customColors[index % customColors.length]
@@ -361,9 +397,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           context: context,
                           builder: (BuildContext context) {
                             return AlertDialog(
-                              title: Text(medicine['name']!),
+                              title: Text(medicine['medicine_name']!),
                               content: Text(
-                                "Quantity: ${medicine['quantity']} ",
+                                "Quantity: ${medicine['total_quantity']}",
                               ),
                               actions: <Widget>[
                                 TextButton(
@@ -390,7 +426,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                               ),
                               Text(
-                                medicine['name']!,
+                                medicine['medicine_name']!,
                                 style: TextStyle(
                                   fontSize: fontSize,
                                   color:
@@ -402,7 +438,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ],
                           ),
                           Text(
-                            "${medicine['quantity']} pcs",
+                            "${medicine['total_quantity']} pcs",
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color:
@@ -418,6 +454,135 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 },
               ),
         ],
+      ),
+    );
+  }
+
+  // Total Medicines Section
+  Widget _buildTotalMedicines(
+    ThemeProvider themeProvider,
+    double fontSize,
+    double screenWidth,
+  ) {
+    final bool isDark = themeProvider.isDarkMode;
+    final Color textColor = isDark ? Colors.white : Colors.black87;
+    final Color bgColor = isDark ? const Color(0xFF1A1A2E) : Colors.white;
+    final Color dividerColor = isDark ? Colors.white12 : Colors.grey.shade200;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          return Container(
+            decoration: BoxDecoration(
+              color: bgColor,
+              borderRadius: BorderRadius.circular(16),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.blue.shade900,
+                  blurRadius: 8,
+                  offset: const Offset(0, 8),
+                ),
+              ],
+            ),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxHeight: constraints.maxHeight),
+              child: Padding(
+                padding: const EdgeInsets.all(18.0),
+                child: SingleChildScrollView(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      // Title
+                      Row(
+                        children: [
+                          Icon(
+                            FeatherIcons.box,
+                            color: isDark ? Colors.cyanAccent : Colors.blue,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              "Available Medicines",
+                              style: TextStyle(
+                                fontSize: fontSize + 2,
+                                fontWeight: FontWeight.w600,
+                                color: textColor,
+                                overflow: TextOverflow.ellipsis,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 16),
+
+                      // Medicine List
+                      Column(
+                        children:
+                            medicines
+                                .map(
+                                  (med) => Column(
+                                    children: [
+                                      Row(
+                                        mainAxisAlignment:
+                                            MainAxisAlignment.spaceBetween,
+                                        children: [
+                                          Expanded(
+                                            child: Text(
+                                              med['name']!,
+                                              style: TextStyle(
+                                                fontSize: fontSize,
+                                                color: textColor,
+                                              ),
+                                              overflow: TextOverflow.ellipsis,
+                                            ),
+                                          ),
+                                          const SizedBox(width: 10),
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 4,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  isDark
+                                                      ? Colors.white12
+                                                      : Colors.grey.shade100,
+                                              borderRadius:
+                                                  BorderRadius.circular(8),
+                                            ),
+                                            child: Text(
+                                              med['quantity']!,
+                                              style: TextStyle(
+                                                fontSize: fontSize - 1,
+                                                fontWeight: FontWeight.bold,
+                                                color:
+                                                    isDark
+                                                        ? Colors.cyanAccent
+                                                        : Colors.blueAccent,
+                                              ),
+                                            ),
+                                          ),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Divider(
+                                        color: dividerColor,
+                                        thickness: 1,
+                                      ),
+                                      const SizedBox(height: 8),
+                                    ],
+                                  ),
+                                )
+                                .toList(),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+        },
       ),
     );
   }
@@ -863,134 +1028,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  // Most Dispensed Medicines Section
-  Widget _buildMostDispensedMedicines(
-    ThemeProvider themeProvider,
-    double fontSize,
-  ) {
-    final bool isDark = themeProvider.isDarkMode;
-    final Color textColor = isDark ? Colors.white : Colors.black87;
-    final Color bgColor = isDark ? const Color(0xFF1A1A2E) : Colors.white;
-    final Color dividerColor = isDark ? Colors.white12 : Colors.grey.shade200;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return Container(
-            decoration: BoxDecoration(
-              color: bgColor,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.blue.shade900,
-                  blurRadius: 8,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: constraints.maxHeight),
-              child: Padding(
-                padding: const EdgeInsets.all(18.0),
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Title
-                      Row(
-                        children: [
-                          Icon(
-                            FeatherIcons.activity,
-                            color: isDark ? Colors.cyanAccent : Colors.blue,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              "Most Dispensed Medicines",
-                              style: TextStyle(
-                                fontSize: fontSize + 2,
-                                fontWeight: FontWeight.w600,
-                                color: textColor,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Medicine List
-                      Column(
-                        children:
-                            mostDispensedMedicine
-                                .map(
-                                  (med) => Column(
-                                    children: [
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              med['medicine_name']!,
-                                              style: TextStyle(
-                                                fontSize: fontSize,
-                                                color: textColor,
-                                              ),
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 10,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color:
-                                                  isDark
-                                                      ? Colors.white12
-                                                      : Colors.grey.shade100,
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                            child: Text(
-                                              med['total_quantity']!,
-                                              style: TextStyle(
-                                                fontSize: fontSize - 1,
-                                                fontWeight: FontWeight.bold,
-                                                color:
-                                                    isDark
-                                                        ? Colors.cyanAccent
-                                                        : Colors.blueAccent,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Divider(
-                                        color: dividerColor,
-                                        thickness: 1,
-                                      ),
-                                      const SizedBox(height: 8),
-                                    ],
-                                  ),
-                                )
-                                .toList(),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
       ),
     );
   }

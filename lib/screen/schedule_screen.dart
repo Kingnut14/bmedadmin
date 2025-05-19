@@ -51,6 +51,9 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                   "end_time":
                       event["end_time"]?.toString() ??
                       "", // Ensure it's a string
+                  "location":
+                      event["location"]?.toString() ??
+                      "", // Ensure it's a string
                 };
               }),
             );
@@ -138,9 +141,7 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
                               borderRadius: BorderRadius.circular(18),
                             ),
                             color:
-                                isDarkMode
-                                    ? Color(0xFF2C3E50)
-                                    : Color(0xFFE3F2FD),
+                                isDarkMode ? Color(0xFF2C3E50) : Colors.white,
                             shadowColor: Colors.blueAccent.withOpacity(0.5),
                             child: Padding(
                               padding: const EdgeInsets.symmetric(
@@ -225,131 +226,155 @@ class EventDetailModal extends StatelessWidget {
   final Map<String, String> eventData;
 
   EventDetailModal({required this.eventData});
-
   @override
   Widget build(BuildContext context) {
-    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final textColor = isDark ? Colors.white : Colors.black87;
+    final surfaceColor = isDark ? const Color(0xFF1E1E2C) : Colors.white;
+    final labelColor = isDark ? Colors.grey[400] : Colors.grey[700];
 
     return Dialog(
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(
-          20,
-        ), // Rounded corners for modern look
-      ),
-      elevation: 12,
-      backgroundColor: Colors.transparent,
-      child: Container(
-        padding: const EdgeInsets.all(24.0),
-        decoration: BoxDecoration(
-          color:
-              isDarkMode
-                  ? Color(0xFF2C3E50)
-                  : Colors.white, // Dark mode background color
-          borderRadius: BorderRadius.circular(20),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withOpacity(0.2),
-              spreadRadius: 5,
-              blurRadius: 10,
-            ),
-          ],
-        ),
+      backgroundColor: surfaceColor,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      insetPadding: const EdgeInsets.symmetric(horizontal: 24),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(24, 28, 24, 20),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Title
             Text(
-              eventData["event"]!,
+              eventData["event"] ?? 'Untitled Event',
+              textAlign: TextAlign.center,
               style: TextStyle(
-                fontSize: 26,
+                fontSize: 24,
                 fontWeight: FontWeight.w700,
-                color:
-                    isDarkMode
-                        ? Colors.white
-                        : Colors.blueAccent, // Adjust text color for dark mode
+                color: textColor,
               ),
             ),
-            const SizedBox(height: 12),
-            Text(
-              'Date: ${eventData["date"]}',
-              style: TextStyle(
-                fontSize: 18,
-                color:
-                    isDarkMode
-                        ? Colors.grey[300]
-                        : Colors.grey[700], // Adjust color for dark mode
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Start Time: ${eventData["start_time"]}', // Show start time
-              style: TextStyle(
-                fontSize: 16,
-                color:
-                    isDarkMode
-                        ? Colors.white70
-                        : Colors.black87, // Adjust color for dark mode
-              ),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'End Time: ${eventData["end_time"]}', // Show end time
-              style: TextStyle(
-                fontSize: 16,
-                color:
-                    isDarkMode
-                        ? Colors.white70
-                        : Colors.black87, // Adjust color for dark mode
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Details: ${eventData["details"]}',
-              style: TextStyle(
-                fontSize: 16,
-                color:
-                    isDarkMode
-                        ? Colors.white70
-                        : Colors.black87, // Adjust color for dark mode
-              ),
-            ),
+
             const SizedBox(height: 24),
-            Center(
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.of(context).pop(); // Close the modal
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: Colors.blueAccent,
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 14,
+            const Divider(),
+
+            _eventDetailTile(
+              icon: Icons.calendar_today,
+              title: 'Date',
+              value: eventData["date"],
+              color: labelColor!,
+              textColor: textColor,
+            ),
+            _eventDetailTile(
+              icon: Icons.schedule,
+              title: 'Start Time',
+              value: eventData["start_time"],
+              color: labelColor,
+              textColor: textColor,
+            ),
+            _eventDetailTile(
+              icon: Icons.schedule_outlined,
+              title: 'End Time',
+              value: eventData["end_time"],
+              color: labelColor,
+              textColor: textColor,
+            ),
+            _eventDetailTile(
+              icon: Icons.description_outlined,
+              title: 'Details',
+              value: eventData["details"],
+              color: labelColor,
+              textColor: textColor,
+            ),
+            _eventDetailTile(
+              icon: Icons.place_outlined,
+              title: 'Location',
+              value: eventData["location"],
+              color: labelColor,
+              textColor: textColor,
+            ),
+
+            const Divider(height: 32),
+
+            // Buttons
+            Row(
+              children: [
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder:
+                              (context) => ScheduleFormScreen(
+                                eventData: eventData,
+                                onTabSelected: (_) {},
+                              ),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.edit),
+                    label: const Text('Edit'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: isDark ? Colors.blueAccent : Colors.blue,
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
                   ),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(
-                      30,
-                    ), // More rounded corners for a sleek look
-                  ),
-                  textStyle: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  shadowColor: Colors.blueAccent.withOpacity(
-                    0.3,
-                  ), // Subtle shadow effect
-                  elevation: 10, // Smooth elevation effect
                 ),
-                child: Text(
-                  'Close',
-                  style: TextStyle(
-                    color:
-                        Colors.white, // White text color for better visibility
+                const SizedBox(width: 16),
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () => Navigator.of(context).pop(),
+                    icon: const Icon(Icons.close),
+                    label: const Text('Close'),
+                    style: OutlinedButton.styleFrom(
+                      side: BorderSide(
+                        color: isDark ? Colors.blueAccent : Colors.blue,
+                      ),
+                      padding: const EdgeInsets.symmetric(vertical: 14),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(10),
+                      ),
+                    ),
                   ),
                 ),
-              ),
+              ],
             ),
           ],
         ),
+      ),
+    );
+  }
+
+  Widget _eventDetailTile({
+    required IconData icon,
+    required String title,
+    required String? value,
+    required Color color,
+    required Color textColor,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 10),
+      child: Row(
+        children: [
+          Icon(icon, size: 20, color: color),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(title, style: TextStyle(fontSize: 13, color: color)),
+                const SizedBox(height: 2),
+                Text(
+                  value ?? '-',
+                  style: TextStyle(fontSize: 16, color: textColor),
+                ),
+              ],
+            ),
+          ),
+        ],
       ),
     );
   }

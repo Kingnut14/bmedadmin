@@ -6,9 +6,9 @@ import 'unread_count_provider.dart';
 
 class NotificationItem {
   final int id;
-  final String title;
-  final String message;
-  final DateTime? createdAt;
+  String title;
+  String message;
+  DateTime? createdAt;
   bool isRead;
 
   NotificationItem({
@@ -22,6 +22,7 @@ class NotificationItem {
 
 class NotificationProvider with ChangeNotifier {
   final List<NotificationItem> _notifications = [];
+  final Set<int> _pendingDeletes = {}; // Track notifications pending deletion
 
   List<NotificationItem> get notifications => _notifications;
 
@@ -35,10 +36,14 @@ class NotificationProvider with ChangeNotifier {
         final data = json.decode(response.body);
 
         if (data['retCode'] == '200' && data['data'] != null) {
-          _notifications.clear();
+          final List<NotificationItem> fetched = [];
 
           for (var item in data['data']) {
-            _notifications.add(
+            if (_pendingDeletes.contains(item['ID'])) {
+              // Skip notifications pending deletion to avoid showing them again
+              continue;
+            }
+            fetched.add(
               NotificationItem(
                 id: item['ID'],
                 title: item['title'] ?? 'No Title',
@@ -52,6 +57,31 @@ class NotificationProvider with ChangeNotifier {
             );
           }
 
+          // Sync _notifications with fetched list:
+          // 1. Update existing or add new
+          for (var fetchedNotification in fetched) {
+            final index = _notifications.indexWhere(
+              (n) => n.id == fetchedNotification.id,
+            );
+            if (index != -1) {
+              // Update existing notification
+              _notifications[index]
+                ..title = fetchedNotification.title
+                ..message = fetchedNotification.message
+                ..createdAt = fetchedNotification.createdAt
+                ..isRead = fetchedNotification.isRead;
+            } else {
+              // Add new notification
+              _notifications.add(fetchedNotification);
+            }
+          }
+
+          // 2. Remove notifications no longer present in backend
+          _notifications.removeWhere(
+            (localNotification) =>
+                !fetched.any((f) => f.id == localNotification.id),
+          );
+
           updateUnreadCount(context);
           notifyListeners();
         }
@@ -63,7 +93,7 @@ class NotificationProvider with ChangeNotifier {
     }
   }
 
-   Future<void> markNotificationAsRead(int id) async {
+  Future<void> markNotificationAsRead(int id) async {
     try {
       final response = await http.put(
         Uri.parse('http://127.0.0.1:5566/notification/$id/read'),
@@ -175,6 +205,7 @@ class NotificationProvider with ChangeNotifier {
 
   void clearAll(BuildContext context) {
     _notifications.clear();
+    _pendingDeletes.clear();
     updateUnreadCount(context);
     notifyListeners();
   }
@@ -193,20 +224,54 @@ class NotificationProvider with ChangeNotifier {
     ).updateUnreadCount(unreadCount);
   }
 
-  // Retained from your original block
-  void removeNotification(int index, BuildContext context) {
-    _notifications.removeAt(index);
-    updateUnreadCount(context);
-    notifyListeners();
-  }
-
   void restoreNotification(
     int index,
     NotificationItem item,
     BuildContext context,
   ) {
     _notifications.insert(index, item);
+    _pendingDeletes.remove(item.id);
     updateUnreadCount(context);
     notifyListeners();
+  }
+
+  void deleteNotificationLocally(int id, BuildContext context) {
+    _notifications.removeWhere((n) => n.id == id);
+    _pendingDeletes.add(id); // Mark as pending deletion
+    updateUnreadCount(context);
+    notifyListeners();
+  }
+
+  void insertNotificationAt(int index, NotificationItem notification) {
+    final exists = _notifications.any((n) => n.id == notification.id);
+    if (!exists) {
+      _notifications.insert(index, notification);
+      notifyListeners();
+    }
+  }
+
+  Future<void> deleteNotificationFromBackend(int id) async {
+    try {
+      final response = await http.delete(
+        Uri.parse('http://127.0.0.1:5566/notification/$id/delete'),
+        headers: {
+          'Content-Type': 'application/json',
+          // Add token if needed
+          // 'Authorization': 'Bearer YOUR_TOKEN',
+        },
+      );
+
+      if (response.statusCode == 200) {
+        // Successfully deleted from backend
+        _pendingDeletes.remove(id);
+      } else {
+        // Handle error - remove anyway to avoid stuck in pending
+        print("Failed to delete notification: ${response.statusCode}");
+        _pendingDeletes.remove(id);
+      }
+    } catch (e) {
+      print("Error deleting notification: $e");
+      _pendingDeletes.remove(id);
+    }
   }
 }

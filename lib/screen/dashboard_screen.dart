@@ -177,7 +177,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     });
   }
 
-    Future<void> _fetchNotificationsAndUpdateUnreadCount() async {
+  Future<void> _fetchNotificationsAndUpdateUnreadCount() async {
     final notificationProvider = context.read<NotificationProvider>();
     await notificationProvider.fetchAdminNotifications(context);
     final unreadCount = notificationProvider.getUnreadCount();
@@ -375,6 +375,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   color: themeProvider.isDarkMode ? Colors.white : Colors.black,
                 ),
               ),
+              // Toggle filter button
               IconButton(
                 icon: Icon(
                   _showFilters
@@ -388,6 +389,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 tooltip: "Filter by Month/Year",
                 onPressed: () {
                   setState(() {
+                    // If hiding filters, reset selections and fetch data
+                    if (_showFilters) {
+                      selectedMonth = null;
+                      selectedYear = null;
+                      _fetchMedicinesData();
+                    }
                     _showFilters = !_showFilters;
                   });
                 },
@@ -466,19 +473,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         }
                       },
                     ),
-                  ),
-
-                  // Clear button
-                  IconButton(
-                    icon: const Icon(Icons.clear),
-                    tooltip: 'Clear filter',
-                    onPressed: () {
-                      setState(() {
-                        selectedMonth = null;
-                        selectedYear = null;
-                      });
-                      _fetchMedicinesData();
-                    },
                   ),
                 ],
               ),

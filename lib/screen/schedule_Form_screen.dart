@@ -6,8 +6,13 @@ import 'package:table_calendar/table_calendar.dart';
 
 class ScheduleFormScreen extends StatefulWidget {
   final Function(int) onTabSelected;
+  final Map<String, String>? eventData;
 
-  const ScheduleFormScreen({super.key, required this.onTabSelected});
+  const ScheduleFormScreen({
+    super.key,
+    required this.onTabSelected,
+    this.eventData,
+  });
 
   @override
   State<ScheduleFormScreen> createState() => _ScheduleScreenState();
@@ -17,10 +22,42 @@ class _ScheduleScreenState extends State<ScheduleFormScreen> {
   DateTime _selectedDay = DateTime.now();
   String? _startTime;
   String? _endTime;
+  late final bool isEditing;
 
   final TextEditingController _titleController = TextEditingController();
   final TextEditingController _locationController = TextEditingController();
   final TextEditingController _descriptionController = TextEditingController();
+
+  @override
+  void initState() {
+    super.initState();
+
+    print('Location: ${_locationController.text}');
+    print('Description: ${_descriptionController.text}');
+
+    isEditing = widget.eventData != null;
+
+    if (isEditing) {
+      _titleController.text = widget.eventData?['event'] ?? '';
+      _locationController.text = widget.eventData?['location'] ?? '';
+      _descriptionController.text = widget.eventData?['details'] ?? '';
+      _startTime = widget.eventData?['start_time'];
+      _endTime = widget.eventData?['end_time'];
+
+      try {
+        final rawDate = widget.eventData?['date'];
+        if (rawDate != null) {
+          if (rawDate.contains('at')) {
+            _selectedDay = DateFormat("MMMM d, yyyy 'at' H").parse(rawDate);
+          } else {
+            _selectedDay = DateFormat('yyyy-MM-dd').parse(rawDate);
+          }
+        }
+      } catch (e) {
+        _selectedDay = DateTime.now();
+      }
+    }
+  }
 
   @override
   void dispose() {
@@ -34,10 +71,9 @@ class _ScheduleScreenState extends State<ScheduleFormScreen> {
   Widget build(BuildContext context) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      extendBodyBehindAppBar: true,
+      backgroundColor: const Color(0xFFBBDEFB),
       appBar: AppBar(
-        backgroundColor: Colors.transparent,
-        elevation: 0,
+        backgroundColor: const Color(0xFFBBDEFB),
         centerTitle: true,
         title: const Text(
           'Create Schedule',

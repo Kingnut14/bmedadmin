@@ -543,35 +543,6 @@ class _MedicineListScreenState extends State<MedicineListScreen> {
         false;
   }
 
-  void _deleteMedicine(int index) {
-    showDialog(
-      context: context,
-      builder:
-          (_) => AlertDialog(
-            title: const Text("Delete Medicine"),
-            content: const Text(
-              "Are you sure you want to delete this medicine?",
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(context),
-                child: const Text("Cancel"),
-              ),
-              ElevatedButton(
-                onPressed: () {
-                  setState(() {
-                    medicineList.removeAt(index);
-                    _filterMedicines();
-                  });
-                  Navigator.pop(context);
-                },
-                child: const Text("Delete"),
-              ),
-            ],
-          ),
-    );
-  }
-
   Widget _buildTextField(
     TextEditingController primaryController,
     String s, {
@@ -705,13 +676,6 @@ class _MedicineListScreenState extends State<MedicineListScreen> {
                     final medicine = _filteredMedicineList[index];
                     return LayoutBuilder(
                       builder: (context, constraints) {
-                        final screenWidth = MediaQuery.of(context).size.width;
-                        final imageHeight = screenWidth * 0.3;
-                        final fontSizeTitle = screenWidth * 0.035;
-                        final fontSizeText = screenWidth * 0.03;
-                        final iconSize = screenWidth * 0.05;
-                        final iconContainerSize = screenWidth * 0.1;
-
                         return Card(
                           shape: RoundedRectangleBorder(
                             borderRadius: BorderRadius.circular(16),
@@ -719,167 +683,123 @@ class _MedicineListScreenState extends State<MedicineListScreen> {
                           elevation: 4,
                           shadowColor: Colors.black12,
                           color: Colors.white,
-                          child: LayoutBuilder(
-                            builder: (context, constraints) {
-                              return Column(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  GestureDetector(
-                                    onTap:
+                          child: Column(
+                            children: [
+                              // Image
+                              ClipRRect(
+                                borderRadius: const BorderRadius.vertical(
+                                  top: Radius.circular(16),
+                                ),
+                                child: GestureDetector(
+                                  onTap:
+                                      () => _pickImage(
+                                        index,
+                                      ), // <- call your image picker method here
+                                  child: Container(
+                                    height: constraints.maxHeight * 0.45,
+                                    width: double.infinity,
+                                    color: Colors.grey[100],
+                                    child:
                                         (medicine['Picture']?.isEmpty ?? true)
-                                            ? () => _pickImage(index)
-                                            : null,
-                                    child: Container(
-                                      height: constraints.maxHeight * 0.50,
-                                      width: double.infinity,
-                                      decoration: BoxDecoration(
-                                        color: Colors.grey[200],
-                                        borderRadius:
-                                            const BorderRadius.vertical(
-                                              top: Radius.circular(16),
+                                            ? const Icon(
+                                              Icons.image,
+                                              size: 40,
+                                              color: Colors.blue,
+                                            )
+                                            : Image.memory(
+                                              base64Decode(
+                                                medicine['Picture'] ?? '',
+                                              ),
+                                              fit: BoxFit.cover,
                                             ),
-                                        image:
-                                            (medicine['Picture']?.isEmpty ??
-                                                    true)
-                                                ? null
-                                                : DecorationImage(
-                                                  image: MemoryImage(
-                                                    base64Decode(
-                                                      medicine['Picture'] ?? '',
-                                                    ),
-                                                  ),
-                                                  fit: BoxFit.cover,
-                                                ),
+                                  ),
+                                ),
+                              ),
+
+                              // Info section
+                              Expanded(
+                                child: Padding(
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 6.0,
+                                    vertical: 4,
+                                  ),
+                                  child: Column(
+                                    mainAxisAlignment:
+                                        MainAxisAlignment.spaceEvenly,
+                                    children: [
+                                      Text(
+                                        medicine['Medicine Name'] ?? 'Unknown',
+                                        style: const TextStyle(
+                                          fontWeight: FontWeight.bold,
+                                          fontSize: 16,
+                                        ),
+                                        textAlign: TextAlign.center,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
                                       ),
-                                      child:
-                                          (medicine['Picture']?.isEmpty ?? true)
-                                              ? Icon(
-                                                Icons.image_outlined,
-                                                size:
-                                                    constraints.maxHeight *
-                                                    0.12,
-                                                color: Colors.blue,
-                                              )
-                                              : null,
-                                    ),
-                                  ),
-                                  Padding(
-                                    padding: const EdgeInsets.symmetric(
-                                      horizontal: 8.0,
-                                      vertical: 6,
-                                    ),
-                                    child: Column(
-                                      children: [
-                                        Text(
-                                          medicine['Medicine Name'] ??
-                                              'Unknown',
-                                          style: TextStyle(
-                                            fontWeight: FontWeight.w600,
-                                            fontSize:
-                                                constraints.maxWidth * 0.07,
-                                          ),
-                                          textAlign: TextAlign.center,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
+                                      Text(
+                                        medicine['Brand Name'] ?? '',
+                                        style: TextStyle(
+                                          fontSize: 14,
+                                          color: Colors.grey[700],
                                         ),
-                                        Text(
-                                          medicine['Brand Name'] ??
-                                              'Unknown Brand',
-                                          style: TextStyle(
-                                            fontSize:
-                                                constraints.maxWidth * 0.055,
-                                            color: Colors.grey[700],
-                                          ),
-                                          textAlign: TextAlign.center,
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
+                                        textAlign: TextAlign.center,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        'Dosage: ${medicine['Dosage'] ?? 'N/A'}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[700],
                                         ),
-                                        Text(
-                                          'Dosage: ${medicine['Dosage'] ?? 'N/A'}',
-                                          style: TextStyle(
-                                            fontSize:
-                                                constraints.maxWidth * 0.05,
-                                            color: Colors.grey[600],
-                                          ),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      Text(
+                                        'Stocks: ${medicine['Stocks'] ?? 'N/A'}',
+                                        style: TextStyle(
+                                          fontSize: 12,
+                                          color: Colors.grey[700],
                                         ),
-                                        Text(
-                                          'Stocks: ${medicine['Stocks'] ?? 'N/A'}',
-                                          style: TextStyle(
-                                            fontSize:
-                                                constraints.maxWidth * 0.05,
-                                            color: Colors.grey[600],
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                      ),
+                                      const SizedBox(height: 4),
+                                      SizedBox(
+                                        height: 30,
+                                        width: double.infinity,
+                                        child: ElevatedButton.icon(
+                                          onPressed: () => _editMedicine(index),
+                                          icon: const Icon(
+                                            Icons.edit,
+                                            size: 14,
                                           ),
-                                        ),
-                                        const SizedBox(height: 20),
-                                        Row(
-                                          mainAxisAlignment:
-                                              MainAxisAlignment.center,
-                                          children: [
-                                            ElevatedButton.icon(
-                                              onPressed:
-                                                  () => _editMedicine(index),
-                                              icon: const Icon(
-                                                Icons.edit,
-                                                color: Colors.white,
-                                              ),
-                                              label: const Text("Edit"),
-                                              style: ElevatedButton.styleFrom(
-                                                foregroundColor: Colors.white,
-                                                backgroundColor: Colors.green,
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(30),
-                                                ),
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 16,
-                                                      vertical: 8,
-                                                    ),
-                                                textStyle: TextStyle(
-                                                  fontSize:
-                                                      constraints.maxWidth *
-                                                      0.045,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
+                                          label: const Text(
+                                            "Edit",
+                                            style: TextStyle(fontSize: 13),
+                                          ),
+                                          style: ElevatedButton.styleFrom(
+                                            backgroundColor: Colors.blue,
+                                            foregroundColor: Colors.white,
+                                            shape: RoundedRectangleBorder(
+                                              borderRadius:
+                                                  BorderRadius.circular(30),
                                             ),
-                                            const SizedBox(width: 12),
-                                            ElevatedButton.icon(
-                                              onPressed:
-                                                  () => _deleteMedicine(index),
-                                              icon: const Icon(
-                                                Icons.delete,
-                                                color: Colors.white,
-                                              ),
-                                              label: const Text("Delete"),
-                                              style: ElevatedButton.styleFrom(
-                                                foregroundColor: Colors.white,
-                                                backgroundColor: Colors.red,
-                                                shape: RoundedRectangleBorder(
-                                                  borderRadius:
-                                                      BorderRadius.circular(30),
-                                                ),
-                                                padding:
-                                                    const EdgeInsets.symmetric(
-                                                      horizontal: 16,
-                                                      vertical: 8,
-                                                    ),
-                                                textStyle: TextStyle(
-                                                  fontSize:
-                                                      constraints.maxWidth *
-                                                      0.045,
-                                                  fontWeight: FontWeight.w500,
-                                                ),
-                                              ),
+                                            tapTargetSize:
+                                                MaterialTapTargetSize
+                                                    .shrinkWrap,
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 4,
                                             ),
-                                          ],
+                                          ),
                                         ),
-                                      ],
-                                    ),
+                                      ),
+                                    ],
                                   ),
-                                ],
-                              );
-                            },
+                                ),
+                              ),
+                            ],
                           ),
                         );
                       },

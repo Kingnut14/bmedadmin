@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:intl/intl.dart';
+import 'package:timeago/timeago.dart' as timeago;
 import '../provider/notificationpro.dart';
 
 class NotificationScreen extends StatefulWidget {
@@ -248,13 +249,23 @@ class _NotificationScreenState extends State<NotificationScreen> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                              formattedDate,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color:
-                                    isDarkMode ? Colors.grey : Colors.grey[600],
-                              ),
-                            ),
+                                    notification.createdAt != null
+                                        ? timeago.format(
+                                          notification.createdAt!.toLocal(),
+                                        )
+                                        : 'Unknown time',
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color:
+                                          isRead
+                                              ? (isDarkMode
+                                                  ? Colors.grey[500]
+                                                  : Colors.grey[700])
+                                              : (isDarkMode
+                                                  ? Colors.white70
+                                                  : Colors.black54),
+                                    ),
+                                  ),
                           ],
                         ),
                       ),

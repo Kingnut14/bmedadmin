@@ -1,3 +1,4 @@
+import 'package:bmedv2/provider/notificationpro.dart';
 import 'package:bmedv2/scanner/accepted_screen%20updated.dart';
 import 'package:bmedv2/screen/menu_screen.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -65,11 +66,34 @@ class _DashboardScreenState extends State<DashboardScreen> {
     '2026', // Add more years if necessary
   ];
 
+  final Map<String, String> monthNameToNumber = {
+    'January': '01',
+    'February': '02',
+    'March': '03',
+    'April': '04',
+    'May': '05',
+    'June': '06',
+    'July': '07',
+    'August': '08',
+    'September': '09',
+    'October': '10',
+    'November': '11',
+    'December': '12',
+  };
+
   bool isLoading = false;
 
   @override
   void initState() {
     super.initState();
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await context.read<NotificationProvider>().fetchAdminNotifications(
+        context,
+      );
+      final unreadCount = context.read<NotificationProvider>().getUnreadCount();
+      context.read<UnreadCountProvider>().updateUnreadCount(unreadCount);
+    });
     _fetchMedicinesData();
     _startAutoRefresh(); // 🔹 Add this line
   }
@@ -85,11 +109,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     String url = 'http://127.0.0.1:5566/dashboard';
 
     if (selectedMonth != null && selectedYear != null) {
-      // Format the month and year as YYYY-MM
-      String formattedMonthYear =
-          '${selectedYear.toString().padLeft(4, '0')}-${selectedMonth.toString().padLeft(2, '0')}';
+      String monthNum = monthNameToNumber[selectedMonth!] ?? '01';
+      String formattedMonthYear = '${selectedYear!.padLeft(4, '0')}-$monthNum';
       url += '?monthYear=$formattedMonthYear';
     }
+
+    // print("Fetching from: $url");
 
     final response = await http.get(Uri.parse(url));
 
@@ -146,9 +171,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
   }
 
   void _startAutoRefresh() {
-    _refreshTimer = Timer.periodic(Duration(seconds: 3), (timer) {
-      _fetchMedicinesData();
+    _refreshTimer = Timer.periodic(const Duration(seconds: 3), (timer) async {
+      await _fetchMedicinesData();
+      await _fetchNotificationsAndUpdateUnreadCount(); // add this line
     });
+  }
+
+    Future<void> _fetchNotificationsAndUpdateUnreadCount() async {
+    final notificationProvider = context.read<NotificationProvider>();
+    await notificationProvider.fetchAdminNotifications(context);
+    final unreadCount = notificationProvider.getUnreadCount();
+    context.read<UnreadCountProvider>().updateUnreadCount(unreadCount);
   }
 
   @override
@@ -394,8 +427,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                         if (newValue != null) {
                           setState(() {
                             selectedMonth = newValue;
-                            // Optional: implement a filtering method here if not done in build
                           });
+                          _fetchMedicinesData();
                         }
                       },
                     ),
@@ -429,9 +462,23 @@ class _DashboardScreenState extends State<DashboardScreen> {
                           setState(() {
                             selectedYear = newValue;
                           });
+                          _fetchMedicinesData();
                         }
                       },
                     ),
+                  ),
+
+                  // Clear button
+                  IconButton(
+                    icon: const Icon(Icons.clear),
+                    tooltip: 'Clear filter',
+                    onPressed: () {
+                      setState(() {
+                        selectedMonth = null;
+                        selectedYear = null;
+                      });
+                      _fetchMedicinesData();
+                    },
                   ),
                 ],
               ),

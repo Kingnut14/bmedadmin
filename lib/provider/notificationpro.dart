@@ -63,6 +63,29 @@ class NotificationProvider with ChangeNotifier {
     }
   }
 
+   Future<void> markNotificationAsRead(int id) async {
+    try {
+      final response = await http.put(
+        Uri.parse('http://127.0.0.1:5566/notification/$id/read'),
+      );
+
+      if (response.statusCode == 200) {
+        final data = json.decode(response.body);
+        if (data['retCode'] == '200') {
+          final index = _notifications.indexWhere((n) => n.id == id);
+          if (index != -1) {
+            _notifications[index].isRead = true;
+            notifyListeners();
+          }
+        }
+      } else {
+        debugPrint('Failed to mark notification as read: ${response.body}');
+      }
+    } catch (e) {
+      debugPrint('Error in markNotificationAsRead: $e');
+    }
+  }
+
   Future<void> markNotificationAsUnread(int id) async {
     try {
       final response = await http.put(

@@ -210,6 +210,13 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
               return GestureDetector(
                 onTap: () {
+                  if (!isRead) {
+                          Provider.of<NotificationProvider>(
+                            context,
+                            listen: false,
+                          ).markNotificationAsRead(notification.id);
+                        }
+
                   _showNotificationDialog(context, notification);
                 },
 

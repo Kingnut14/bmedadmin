@@ -40,6 +40,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
   void _showNotificationDialog(BuildContext context, notification) {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+    final provider = Provider.of<NotificationProvider>(context, listen: false);
 
     final String formattedDate =
         (() {
@@ -49,7 +50,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
               final localDate = parsedDate.toLocal();
               return DateFormat('MMMM dd, yyyy – hh:mm a').format(localDate);
             }
-
             return 'Unknown';
           } catch (_) {
             return 'Unknown';
@@ -59,50 +59,73 @@ class _NotificationScreenState extends State<NotificationScreen> {
     showDialog(
       context: context,
       builder: (BuildContext context) {
-        return AlertDialog(
-          backgroundColor: isDarkMode ? Colors.grey[900] : Colors.white,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-          ),
-          title: Text(
-            notification.title,
-            style: TextStyle(
-              fontWeight: FontWeight.bold,
-              color: isDarkMode ? Colors.white : Colors.black,
-            ),
-          ),
-          content: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                notification.message,
+        return StatefulBuilder(
+          builder: (context, setState) {
+            return AlertDialog(
+              backgroundColor: isDarkMode ? Colors.grey[900] : Colors.white,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(16),
+              ),
+              title: Text(
+                notification.title,
                 style: TextStyle(
-                  fontSize: 14,
-                  color: isDarkMode ? Colors.white70 : Colors.black87,
+                  fontWeight: FontWeight.bold,
+                  color: isDarkMode ? Colors.white : Colors.black,
                 ),
               ),
-              const SizedBox(height: 10),
-              Text(
-                'Date: $formattedDate',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: isDarkMode ? Colors.grey[400] : Colors.grey[700],
-                ),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    notification.message,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: isDarkMode ? Colors.white70 : Colors.black87,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  Text(
+                    'Date: $formattedDate',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: isDarkMode ? Colors.grey[400] : Colors.grey[700],
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-          actions: [
-            TextButton(
-              child: Text(
-                'Close',
-                style: TextStyle(
-                  color: isDarkMode ? Colors.blue[200] : Colors.blue,
+              actions: [
+                if (notification.isRead) // show button only if currently read
+                  TextButton(
+                    child: Text(
+                      'Mark as Unread',
+                      style: TextStyle(
+                        color: isDarkMode ? Colors.orange[200] : Colors.orange,
+                      ),
+                    ),
+                    onPressed: () async {
+                      await provider.markNotificationAsUnread(
+                        notification.id,
+                      ); // fixed method name
+                      setState(() {
+                        notification.isRead =
+                            false; // mark unread = isRead = false
+                      });
+                    },
+                  ),
+
+                TextButton(
+                  child: Text(
+                    'Close',
+                    style: TextStyle(
+                      color: isDarkMode ? Colors.blue[200] : Colors.blue,
+                    ),
+                  ),
+                  onPressed: () => Navigator.of(context).pop(),
                 ),
-              ),
-              onPressed: () => Navigator.of(context).pop(),
-            ),
-          ],
+              ],
+            );
+          },
         );
       },
     );
@@ -133,7 +156,32 @@ class _NotificationScreenState extends State<NotificationScreen> {
             fontSize: 18,
           ),
         ),
+        actions: [
+          Consumer<NotificationProvider>(
+            builder: (context, provider, _) {
+              // Check if there is any unread notification
+              final anyUnread = provider.notifications.any((n) => !n.isRead);
+              return TextButton(
+                onPressed: () async {
+                  if (anyUnread) {
+                    provider.markAllAsRead(context);
+                  } else {
+                    provider.markAllAsUnread(context);
+                  }
+                },
+                child: Text(
+                  anyUnread ? 'Mark all read' : 'Mark all unread',
+                  style: TextStyle(
+                    color: isDarkMode ? Colors.orange[200] : Colors.orange,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              );
+            },
+          ),
+        ],
       ),
+
       body: Consumer<NotificationProvider>(
         builder: (context, provider, _) {
           final notifications = provider.notifications;
@@ -162,9 +210,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
 
               return GestureDetector(
                 onTap: () {
-                  provider.markNotificationAsRead(notification.id);
                   _showNotificationDialog(context, notification);
                 },
+
                 child: AnimatedContainer(
                   duration: const Duration(milliseconds: 300),
                   margin: const EdgeInsets.only(bottom: 12),
@@ -249,23 +297,23 @@ class _NotificationScreenState extends State<NotificationScreen> {
                             ),
                             const SizedBox(height: 6),
                             Text(
-                                    notification.createdAt != null
-                                        ? timeago.format(
-                                          notification.createdAt!.toLocal(),
-                                        )
-                                        : 'Unknown time',
-                                    style: TextStyle(
-                                      fontSize: 12,
-                                      color:
-                                          isRead
-                                              ? (isDarkMode
-                                                  ? Colors.grey[500]
-                                                  : Colors.grey[700])
-                                              : (isDarkMode
-                                                  ? Colors.white70
-                                                  : Colors.black54),
-                                    ),
-                                  ),
+                              notification.createdAt != null
+                                  ? timeago.format(
+                                    notification.createdAt!.toLocal(),
+                                  )
+                                  : 'Unknown time',
+                              style: TextStyle(
+                                fontSize: 12,
+                                color:
+                                    isRead
+                                        ? (isDarkMode
+                                            ? Colors.grey[500]
+                                            : Colors.grey[700])
+                                        : (isDarkMode
+                                            ? Colors.white70
+                                            : Colors.black54),
+                              ),
+                            ),
                           ],
                         ),
                       ),

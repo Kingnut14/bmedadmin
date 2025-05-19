@@ -63,10 +63,10 @@ class NotificationProvider with ChangeNotifier {
     }
   }
 
-  Future<void> markNotificationAsRead(int id) async {
+  Future<void> markNotificationAsUnread(int id) async {
     try {
       final response = await http.put(
-        Uri.parse('http://127.0.0.1:5566/notification/$id/read'),
+        Uri.parse('http://127.0.0.1:5566/notification/$id/unread'),
       );
 
       if (response.statusCode == 200) {
@@ -74,24 +74,76 @@ class NotificationProvider with ChangeNotifier {
         if (data['retCode'] == '200') {
           final index = _notifications.indexWhere((n) => n.id == id);
           if (index != -1) {
-            _notifications[index].isRead = true;
+            _notifications[index].isRead = false;
             notifyListeners();
           }
         }
       } else {
-        debugPrint('Failed to mark notification as read: ${response.body}');
+        debugPrint('Failed to mark notification as unread: ${response.body}');
       }
     } catch (e) {
-      debugPrint('Error in markNotificationAsRead: $e');
+      debugPrint('Error in markNotificationAsUnread: $e');
     }
   }
 
   void markAllAsRead(BuildContext context) {
-    for (var n in _notifications) {
-      n.isRead = true;
+    for (var notification in _notifications.where((n) => !n.isRead)) {
+      http
+          .put(
+            Uri.parse(
+              'http://127.0.0.1:5566/notification/${notification.id}/read',
+            ),
+          )
+          .then((response) {
+            if (response.statusCode == 200) {
+              final data = json.decode(response.body);
+              if (data['retCode'] == '200') {
+                notification.isRead = true;
+                updateUnreadCount(context);
+                notifyListeners();
+              }
+            } else {
+              debugPrint(
+                'Failed to mark notification ${notification.id} as read',
+              );
+            }
+          })
+          .catchError((e) {
+            debugPrint(
+              'Error marking notification ${notification.id} as read: $e',
+            );
+          });
     }
-    updateUnreadCount(context);
-    notifyListeners();
+  }
+
+  void markAllAsUnread(BuildContext context) {
+    for (var notification in _notifications.where((n) => n.isRead)) {
+      http
+          .put(
+            Uri.parse(
+              'http://127.0.0.1:5566/notification/${notification.id}/unread',
+            ),
+          )
+          .then((response) {
+            if (response.statusCode == 200) {
+              final data = json.decode(response.body);
+              if (data['retCode'] == '200') {
+                notification.isRead = false;
+                updateUnreadCount(context);
+                notifyListeners();
+              }
+            } else {
+              debugPrint(
+                'Failed to mark notification ${notification.id} as unread',
+              );
+            }
+          })
+          .catchError((e) {
+            debugPrint(
+              'Error marking notification ${notification.id} as unread: $e',
+            );
+          });
+    }
   }
 
   int getUnreadCount() {

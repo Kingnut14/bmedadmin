@@ -1,27 +1,122 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:intl/intl.dart';
 import '../provider/notificationpro.dart';
-import '../provider/unread_count_provider.dart';
 
-class NotificationScreen extends StatelessWidget {
+class NotificationScreen extends StatefulWidget {
   const NotificationScreen({super.key});
 
   @override
+  State<NotificationScreen> createState() => _NotificationScreenState();
+}
+
+class _NotificationScreenState extends State<NotificationScreen> {
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    Future.microtask(() {
+      final provider = Provider.of<NotificationProvider>(
+        context,
+        listen: false,
+      );
+      provider.fetchAdminNotifications(context);
+
+      _timer = Timer.periodic(Duration(seconds: 3), (timer) {
+        provider.fetchAdminNotifications(context);
+      });
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  void _showNotificationDialog(BuildContext context, notification) {
+    final isDarkMode = Theme.of(context).brightness == Brightness.dark;
+
+    final String formattedDate =
+        (() {
+          try {
+            final parsedDate = notification.createdAt;
+            if (parsedDate != null) {
+              final localDate = parsedDate.toLocal();
+              return DateFormat('MMMM dd, yyyy – hh:mm a').format(localDate);
+            }
+
+            return 'Unknown';
+          } catch (_) {
+            return 'Unknown';
+          }
+        })();
+
+    showDialog(
+      context: context,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          backgroundColor: isDarkMode ? Colors.grey[900] : Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Text(
+            notification.title,
+            style: TextStyle(
+              fontWeight: FontWeight.bold,
+              color: isDarkMode ? Colors.white : Colors.black,
+            ),
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                notification.message,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isDarkMode ? Colors.white70 : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                'Date: $formattedDate',
+                style: TextStyle(
+                  fontSize: 12,
+                  color: isDarkMode ? Colors.grey[400] : Colors.grey[700],
+                ),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              child: Text(
+                'Close',
+                style: TextStyle(
+                  color: isDarkMode ? Colors.blue[200] : Colors.blue,
+                ),
+              ),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final provider = Provider.of<NotificationProvider>(context);
-    final unreadProvider = Provider.of<UnreadCountProvider>(context);
-
-WidgetsBinding.instance.addPostFrameCallback((_) {
-  provider.updateUnreadCount(context);
-});
-
-
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
     final iconColor = isDarkMode ? Colors.white70 : Colors.black87;
 
     return Scaffold(
+      backgroundColor: const Color(0xFFBBDEFB),
       appBar: AppBar(
-        backgroundColor: isDarkMode ? Colors.black87 : Colors.white,
+        backgroundColor: isDarkMode ? Colors.black87 : const Color(0xFFBBDEFB),
+        surfaceTintColor: Colors.transparent,
         elevation: 4,
         centerTitle: true,
         leading: IconButton(
@@ -37,117 +132,139 @@ WidgetsBinding.instance.addPostFrameCallback((_) {
             fontSize: 18,
           ),
         ),
-        actions: [
-          Consumer<UnreadCountProvider>(
-            builder: (context, unreadCountProvider, _) {
-              return Padding(
-                padding: const EdgeInsets.only(right: 16),
-                child: Stack(
-                  clipBehavior: Clip.none,
-                  children: [
-                    IconButton(
-                      icon: Icon(Icons.notifications_none, color: iconColor),
-                      tooltip: 'Notifications',
-                      onPressed: () => Navigator.pushNamed(context, '/Notification_screen'),
+      ),
+      body: Consumer<NotificationProvider>(
+        builder: (context, provider, _) {
+          final notifications = provider.notifications;
+
+          if (notifications.isEmpty) {
+            return const Center(child: Text("No notifications available."));
+          }
+
+          // Sort by newest first
+          final sortedNotifications = [...notifications]..sort(
+            (a, b) => (b.createdAt ?? DateTime.now()).compareTo(
+              a.createdAt ?? DateTime.now(),
+            ),
+          );
+
+          return ListView.builder(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            itemCount: sortedNotifications.length,
+            itemBuilder: (context, index) {
+              final notification = sortedNotifications[index];
+              final formattedDate = DateFormat.yMMMd().add_jm().format(
+                notification.createdAt ?? DateTime.now(),
+              );
+
+              final isRead = notification.isRead;
+
+              return GestureDetector(
+                onTap: () {
+                  provider.markNotificationAsRead(notification.id);
+                  _showNotificationDialog(context, notification);
+                },
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 300),
+                  margin: const EdgeInsets.only(bottom: 12),
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color:
+                        isRead
+                            ? (isDarkMode
+                                ? const Color(0xFF2C2C2E)
+                                : Colors.grey[100])
+                            : (isDarkMode
+                                ? const Color(0xFF1A1A2E)
+                                : Colors.white),
+                    borderRadius: BorderRadius.circular(16),
+                    boxShadow: [
+                      BoxShadow(
+                        color:
+                            isDarkMode
+                                ? Colors.black26
+                                : Colors.grey.withOpacity(0.2),
+                        blurRadius: 10,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                    border: Border.all(
+                      color:
+                          isRead
+                              ? (isDarkMode
+                                  ? Colors.grey.shade800
+                                  : Colors.grey.shade300)
+                              : (isDarkMode
+                                  ? Colors.blue.shade400
+                                  : Colors.blue.shade100),
+                      width: 1.2,
                     ),
-                    if (unreadCountProvider.unreadCount > 0)
-                      Positioned(
-                        right: 6,
-                        top: 6,
-                        child: CircleAvatar(
-                          radius: 8,
-                          backgroundColor: Colors.red,
-                          child: Text(
-                            '${unreadCountProvider.unreadCount}',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.white,
+                  ),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        isRead
+                            ? Icons.notifications_none
+                            : Icons.notifications_active,
+                        color:
+                            isRead
+                                ? (isDarkMode
+                                    ? Colors.grey
+                                    : Colors.grey.shade600)
+                                : (isDarkMode
+                                    ? Colors.blue.shade300
+                                    : Colors.blue.shade700),
+                        size: 28,
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              notification.title,
+                              style: TextStyle(
+                                fontSize: 16,
+                                fontWeight:
+                                    isRead
+                                        ? FontWeight.normal
+                                        : FontWeight.w600,
+                                color:
+                                    isDarkMode ? Colors.white : Colors.black87,
+                              ),
                             ),
-                          ),
+                            const SizedBox(height: 6),
+                            Text(
+                              notification.message,
+                              style: TextStyle(
+                                fontSize: 13,
+                                height: 1.4,
+                                color:
+                                    isDarkMode
+                                        ? Colors.white70
+                                        : Colors.black54,
+                              ),
+                            ),
+                            const SizedBox(height: 6),
+                            Text(
+                              formattedDate,
+                              style: TextStyle(
+                                fontSize: 12,
+                                color:
+                                    isDarkMode ? Colors.grey : Colors.grey[600],
+                              ),
+                            ),
+                          ],
                         ),
                       ),
-                  ],
+                    ],
+                  ),
                 ),
               );
             },
-          ),
-        ],
-      ),
-      body: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        child: ListView.builder(
-          itemCount: provider.notifications.length,
-          itemBuilder: (context, index) {
-            final notification = provider.notifications[index];
-            return GestureDetector(
-              onTap: () {
-                provider.toggleRead(index, context); // Toggle read status
-              },
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 300),
-                curve: Curves.easeInOut,
-                margin: const EdgeInsets.only(bottom: 10),
-                padding: const EdgeInsets.all(14),
-                decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(16),
-                  color: isDarkMode
-                      ? Colors.grey.shade900.withOpacity(0.5)
-                      : Colors.white.withOpacity(0.8),
-                  boxShadow: [
-                    BoxShadow(
-                      color: Colors.black12,
-                      blurRadius: 6,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-                  border: Border.all(
-                    color: Colors.white.withOpacity(0.2),
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      notification.isRead
-                          ? Icons.notifications_none
-                          : Icons.notifications_active,
-                      color: notification.isRead
-                          ? Colors.grey
-                          : (isDarkMode ? Colors.white : Colors.blue),
-                      size: 24,
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            notification.title,
-                            style: TextStyle(
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold,
-                              color: isDarkMode ? Colors.white : Colors.black87,
-                              decoration: notification.isRead
-                                  ? TextDecoration.lineThrough
-                                  : null,
-                            ),
-                          ),
-                          const SizedBox(height: 4),
-                          Text(
-                            notification.message,
-                            style: TextStyle(
-                              fontSize: 13,
-                              color: isDarkMode ? Colors.white60 : Colors.black54,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          },
-        ),
+          );
+        },
       ),
     );
   }

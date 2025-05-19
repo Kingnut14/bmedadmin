@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:bmedv2/screen/menu_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
@@ -152,7 +153,8 @@ class _UserManagementScreenState extends State<UserManagementScreen> {
         fontSize: 15,
         isDarkMode: isDarkMode,
       ),
-      backgroundColor: isDarkMode ? Colors.black : const Color(0xFFF4F6F8),
+      drawer: const MenuScreen(),
+      backgroundColor: isDarkMode ? Colors.black : Color(0xFFBBDEFB),
       body: SafeArea(
         child: Column(
           children: [

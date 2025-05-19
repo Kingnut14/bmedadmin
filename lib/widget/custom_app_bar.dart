@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../provider/unread_count_provider.dart';
 
-class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
+class CustomAppBar extends StatefulWidget implements PreferredSizeWidget {
   final String title;
   final bool isDarkMode;
   final double fontSize;
@@ -18,126 +18,155 @@ class CustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final backgroundColor = isDarkMode ? Colors.black87 : Colors.white;
-    final iconColor = isDarkMode ? Colors.white70 : Colors.black87;
+  State<CustomAppBar> createState() => _CustomAppBarState();
 
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-    final notificationProvider = Provider.of<NotificationProvider>(context, listen: false);
+  @override
+  Size get preferredSize => const Size.fromHeight(60);
+}
+
+class _CustomAppBarState extends State<CustomAppBar> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      // Fetch notifications on app bar init (or move this to home screen init)
+      await context.read<NotificationProvider>().fetchAdminNotifications(
+        context,
+      );
+
+      // Then update unread count after fetch
+      _updateUnreadCount();
+    });
+  }
+
+  void _updateUnreadCount() {
+    final notificationProvider = context.read<NotificationProvider>();
     final unreadCount = notificationProvider.getUnreadCount();
-    Provider.of<UnreadCountProvider>(context, listen: false).updateUnreadCount(unreadCount);
-  });
-  
+    context.read<UnreadCountProvider>().updateUnreadCount(unreadCount);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final backgroundColor = const Color(
+      0xFFBBDEFB,
+    ); // from first block, keep your requested color
+    final iconColor = widget.isDarkMode ? Colors.white : Colors.black87;
+
     final currentRoute = ModalRoute.of(context)?.settings.name;
     final onNotificationScreen = currentRoute == '/Notification_screen';
 
     return ClipRRect(
       borderRadius: const BorderRadius.only(
-        bottomLeft: Radius.circular(16),
-        bottomRight: Radius.circular(16),
+        bottomLeft: Radius.circular(20),
+        bottomRight: Radius.circular(20),
       ),
       child: Container(
-        height: preferredSize.height,
+        height: widget.preferredSize.height,
         decoration: BoxDecoration(
           color: backgroundColor,
           boxShadow: [
             BoxShadow(
               color: Colors.black12,
-              blurRadius: 6,
-              offset: const Offset(0, 4),
+              blurRadius: 10,
+              offset: const Offset(0, 6),
             ),
           ],
         ),
         child: SafeArea(
           bottom: false,
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
-              // Always show back button if on notification screen
-            Row(
-              children: [
-                if (onNotificationScreen)
-                  IconButton(
-                    icon: Icon(Icons.arrow_back_ios_new_rounded, size: 18, color: iconColor),
-                    onPressed: () => Navigator.pop(context),
-                  )
-                else
-                  IconButton(
-                    icon: Icon(Icons.settings_outlined, size: 20, color: iconColor),
-                    tooltip: 'Settings',
-                    onPressed: () => Navigator.pushNamed(context, '/settings'),
+              // Left icon (back arrow if on notification screen, else menu drawer)
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: IconButton(
+                  icon: Icon(
+                    onNotificationScreen
+                        ? Icons.arrow_back_ios_new_rounded
+                        : Icons.menu,
+                    size: 22,
+                    color: iconColor,
                   ),
-              ],
-            ),
+                  tooltip: onNotificationScreen ? 'Back' : 'Settings',
+                  onPressed: () {
+                    if (onNotificationScreen) {
+                      Navigator.pop(context);
+                    } else {
+                      Scaffold.of(context).openDrawer();
+                    }
+                  },
+                ),
+              ),
 
-
-              // Title
               Expanded(
                 child: Center(
-                  child: Text(
-                    title,
-                    style: TextStyle(
-                      fontSize: fontSize,
-                      fontWeight: FontWeight.bold,
-                      color: iconColor,
-                    ),
+                  child: Image.asset(
+                    'assets/baramedlogo_v4.png',
+                    height: 600,
+                    fit: BoxFit.contain,
                   ),
                 ),
               ),
 
-              // Right-side icons
-              Row(
-                children: [
-                  if (!onNotificationScreen)
-                    Stack(
-                      clipBehavior: Clip.none,
-                      children: [
-                        IconButton(
-                          icon: Icon(Icons.notifications_none, size: 20, color: iconColor),
-                          tooltip: 'Notifications',
-                          onPressed: () => Navigator.pushNamed(context, '/Notification_screen'),
+              // Right notification icon with unread badge if NOT on notification screen
+              if (!onNotificationScreen)
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 8),
+                  child: Stack(
+                    clipBehavior: Clip.none,
+                    children: [
+                      IconButton(
+                        icon: Icon(
+                          Icons.notifications_none,
+                          size: 22,
+                          color: iconColor,
                         ),
-                        Positioned(
-                          right: 6,
-                          top: 6,
-                          child: Consumer<UnreadCountProvider>(
-                            builder: (context, unreadProvider, _) {
-                              final unreadCount = unreadProvider.unreadCount;
-                              return unreadCount > 0
-                                  ? Container(
-                                      padding: const EdgeInsets.all(2),
-                                      decoration: const BoxDecoration(
-                                        color: Colors.red,
-                                        shape: BoxShape.circle,
+                        tooltip: 'Notifications',
+                        onPressed:
+                            () => Navigator.pushNamed(
+                              context,
+                              '/Notification_screen',
+                            ),
+                      ),
+                      Positioned(
+                        right: 4,
+                        top: 6,
+                        child: Consumer<UnreadCountProvider>(
+                          builder: (context, unreadProvider, _) {
+                            final unreadCount = unreadProvider.unreadCount;
+                            return unreadCount > 0
+                                ? Container(
+                                  padding: const EdgeInsets.all(3),
+                                  decoration: const BoxDecoration(
+                                    color: Colors.redAccent,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 16,
+                                    minHeight: 16,
+                                  ),
+                                  child: Center(
+                                    child: Text(
+                                      '$unreadCount',
+                                      style: const TextStyle(
+                                        fontSize: 10,
+                                        color: Colors.white,
                                       ),
-                                      constraints: const BoxConstraints(
-                                        minWidth: 16,
-                                        minHeight: 16,
-                                      ),
-                                      child: Center(
-                                        child: Text(
-                                          '$unreadCount',
-                                          style: const TextStyle(
-                                            fontSize: 10,
-                                            color: Colors.white,
-                                          ),
-                                        ),
-                                      ),
-                                    )
-                                  : const SizedBox.shrink();
-                            },
-                          ),
+                                    ),
+                                  ),
+                                )
+                                : const SizedBox.shrink();
+                          },
                         ),
-                      ],
-                    ),
-                ],
-              ),
+                      ),
+                    ],
+                  ),
+                ),
             ],
           ),
         ),
       ),
     );
   }
-
-  @override
-  Size get preferredSize => const Size.fromHeight(60);
 }

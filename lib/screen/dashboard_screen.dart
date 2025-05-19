@@ -1,9 +1,11 @@
-import 'package:bmedv2/scanner/accepted_screen.dart';
+import 'package:bmedv2/scanner/accepted_screen%20updated.dart';
+import 'package:bmedv2/screen/menu_screen.dart';
 import 'package:fl_chart/fl_chart.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:provider/provider.dart';
 import 'package:flutter_feather_icons/flutter_feather_icons.dart';
+import 'package:table_calendar/table_calendar.dart';
 import '../provider/theme_provider.dart';
 import '../provider/font_size_provider.dart';
 import '../provider/unread_count_provider.dart';
@@ -31,6 +33,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
   List<Map<String, String>> mostDispensedMedicine = [];
   List<Map<String, dynamic>> backendSchedules = [];
   Timer? _refreshTimer;
+  String? selectedMonth;
+  String? selectedYear;
+  bool _showFilters = false;
+  DateTime _focusedDay = DateTime.now();
+  bool _showAllEvents = false;
+  int _expandedEventIndex = -1;
+  bool _showAllMedicines = false;
+
+  List<String> months = [
+    'January',
+    'February',
+    'March',
+    'April',
+    'May',
+    'June',
+    'July',
+    'August',
+    'September',
+    'October',
+    'November',
+    'December',
+  ];
+
+  List<String> years = [
+    '2021',
+    '2022',
+    '2023',
+    '2024',
+    '2025',
+    '2026', // Add more years if necessary
+  ];
 
   bool isLoading = false;
 
@@ -49,11 +82,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   // Fetch medicines data from the backend
   Future<void> _fetchMedicinesData() async {
-    final response = await http.get(
-      Uri.parse('http://127.0.0.1:5566/dashboard'),
-    );
+    String url = 'http://127.0.0.1:5566/dashboard';
 
-    //print(response.body);
+    if (selectedMonth != null && selectedYear != null) {
+      // Format the month and year as YYYY-MM
+      String formattedMonthYear =
+          '${selectedYear.toString().padLeft(4, '0')}-${selectedMonth.toString().padLeft(2, '0')}';
+      url += '?monthYear=$formattedMonthYear';
+    }
+
+    final response = await http.get(Uri.parse(url));
 
     if (response.statusCode == 200) {
       final decoded = json.decode(response.body);
@@ -64,9 +102,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
           data['most_dispensed_medicines'] ?? [];
       List<dynamic> schedules = data['schedules'] ?? [];
 
-      //print("Most Dispensed Medicines: $mostDispensedMedicines");
-
-      // Update your medicines list accordingly
       setState(() {
         medicines =
             availableMedicines
@@ -125,7 +160,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     double screenWidth = MediaQuery.of(context).size.width;
     double scaledFontSize = fontSize + (screenWidth / 375);
 
-    String appBarTitle = "Baramed";
+    String appBarTitle = "BaraMed";
     if (ModalRoute.of(context)?.settings.name == '/messageScreen') {
       appBarTitle = "Messages";
     } else if (ModalRoute.of(context)?.settings.name == '/dashboard') {
@@ -138,12 +173,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
         fontSize: scaledFontSize,
         isDarkMode: themeProvider.isDarkMode,
       ),
+      drawer: const MenuScreen(),
       backgroundColor:
-          themeProvider.isDarkMode ? Colors.black : const Color(0xFF94C4ED),
+          themeProvider.isDarkMode ? Colors.black : const Color(0xFFBBDEFB),
       body: SafeArea(
         child: SingleChildScrollView(
           child: Column(
             children: [
+              _buildMostDispensedMedicines(
+                themeProvider,
+                scaledFontSize,
+                screenWidth,
+              ),
+              _buildUpcomingSchedule(themeProvider, scaledFontSize),
               isLoading
                   ? Center(child: CircularProgressIndicator())
                   : _buildTotalMedicines(
@@ -151,9 +193,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     scaledFontSize,
                     screenWidth,
                   ),
-              _buildUpcomingSchedule(themeProvider, scaledFontSize),
+
               _buildTwoColumnLayout(themeProvider, scaledFontSize, screenWidth),
-              _buildMostDispensedMedicines(themeProvider, scaledFontSize),
             ],
           ),
         ),
@@ -172,8 +213,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
-  // Total Medicines Section
-  Widget _buildTotalMedicines(
+  // Most Dispensed Medicines Section
+  Widget _buildMostDispensedMedicines(
     ThemeProvider themeProvider,
     double fontSize,
     double screenWidth,
@@ -188,40 +229,43 @@ class _DashboardScreenState extends State<DashboardScreen> {
       Colors.purple,
       Colors.cyan,
       Colors.yellow,
-      Colors.indigo, // Added Indigo color
-      Colors.teal, // Added Teal color
-      Colors.brown, // Added Brown color
-      Colors.grey, // Added Grey color
-      Colors.amber, // Added Amber color
-      Colors.lime, // Added Lime color
-      Colors.pink, // Added Pink color
-      Colors.deepPurple, // Added DeepPurple color
-      Colors.deepOrange, // Added DeepOrange color
+      Colors.indigo,
+      Colors.teal,
+      Colors.brown,
+      Colors.grey,
+      Colors.amber,
+      Colors.lime,
+      Colors.pink,
+      Colors.deepPurple,
+      Colors.deepOrange,
     ];
 
-    if (medicines.isNotEmpty) {
-      medicines.sort(
-        (a, b) =>
-            int.parse(b['quantity']!).compareTo(int.parse(a['quantity']!)),
+    if (mostDispensedMedicine.isNotEmpty) {
+      mostDispensedMedicine.sort(
+        (a, b) => int.parse(
+          b['total_quantity']!,
+        ).compareTo(int.parse(a['total_quantity']!)),
       );
 
-      List<Map<String, String>> topMedicines = medicines.take(10).toList();
-      List<Map<String, String>> otherMedicines = medicines.skip(10).toList();
+      List<Map<String, String>> topMedicines =
+          mostDispensedMedicine.take(10).toList();
+      List<Map<String, String>> otherMedicines =
+          mostDispensedMedicine.skip(10).toList();
 
-      totalQuantity = medicines.fold(
+      totalQuantity = mostDispensedMedicine.fold(
         0,
-        (sum, med) => sum + int.parse(med['quantity']!),
+        (sum, med) => sum + int.parse(med['total_quantity']!),
       );
 
       for (int i = 0; i < topMedicines.length; i++) {
-        int quantity = int.parse(topMedicines[i]['quantity']!);
+        int quantity = int.parse(topMedicines[i]['total_quantity']!);
         double percentage = (quantity / totalQuantity) * 100;
 
         sections.add(
           PieChartSectionData(
             value: quantity.toDouble(),
             title: "${percentage.toStringAsFixed(1)}%",
-            radius: medicines.length > 10 ? 50 : 60,
+            radius: mostDispensedMedicine.length > 10 ? 50 : 60,
             titleStyle: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
@@ -235,7 +279,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       if (otherMedicines.isNotEmpty) {
         int otherQuantity = otherMedicines.fold(
           0,
-          (sum, med) => sum + int.parse(med['quantity']!),
+          (sum, med) => sum + int.parse(med['total_quantity']!),
         );
         double percentage = (otherQuantity / totalQuantity) * 100;
 
@@ -243,7 +287,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
           PieChartSectionData(
             value: otherQuantity.toDouble(),
             title: "${percentage.toStringAsFixed(1)}%",
-            radius: medicines.length > 10 ? 50 : 60,
+            radius: mostDispensedMedicine.length > 10 ? 50 : 60,
             titleStyle: const TextStyle(
               fontSize: 12,
               fontWeight: FontWeight.bold,
@@ -254,10 +298,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
         );
       }
     } else {
-      // If no data, show a single grey section with 100%
       sections.add(
         PieChartSectionData(
-          value: 1, // dummy value to render the pie chart
+          value: 1,
           title: "0%",
           radius: 50,
           titleStyle: const TextStyle(
@@ -271,31 +314,129 @@ class _DashboardScreenState extends State<DashboardScreen> {
     }
 
     return Container(
-      margin: EdgeInsets.all(16),
-      padding: EdgeInsets.all(16),
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color:
             themeProvider.isDarkMode ? const Color(0xFF1A1A2E) : Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(16),
         boxShadow: [
           BoxShadow(
-            color: Colors.blue.shade900,
-            blurRadius: 15,
-            offset: const Offset(0, 2),
+            color: Colors.black12,
+            blurRadius: 10,
+            offset: const Offset(0, 4),
           ),
         ],
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            "Total Medicines",
-            style: TextStyle(
-              fontSize: fontSize + 4,
-              fontWeight: FontWeight.bold,
-              color: themeProvider.isDarkMode ? Colors.white : Colors.black,
-            ),
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Text(
+                "Dispensed Medicine",
+                style: TextStyle(
+                  fontSize: fontSize + 4,
+                  fontWeight: FontWeight.bold,
+                  color: themeProvider.isDarkMode ? Colors.white : Colors.black,
+                ),
+              ),
+              IconButton(
+                icon: Icon(
+                  _showFilters
+                      ? Icons.filter_alt_off
+                      : Icons.filter_alt_outlined,
+                  color:
+                      themeProvider.isDarkMode
+                          ? Colors.white70
+                          : Colors.black87,
+                ),
+                tooltip: "Filter by Month/Year",
+                onPressed: () {
+                  setState(() {
+                    _showFilters = !_showFilters;
+                  });
+                },
+              ),
+            ],
           ),
+
+          if (_showFilters)
+            Padding(
+              padding: const EdgeInsets.only(top: 12.0, bottom: 8),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: selectedMonth,
+                      decoration: InputDecoration(
+                        labelText: 'Month',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                        ),
+                      ),
+                      dropdownColor:
+                          themeProvider.isDarkMode
+                              ? const Color(0xFF2C2C2C)
+                              : Colors.white,
+                      items:
+                          months.map((String month) {
+                            return DropdownMenuItem<String>(
+                              value: month,
+                              child: Text(month),
+                            );
+                          }).toList(),
+                      onChanged: (String? newValue) {
+                        if (newValue != null) {
+                          setState(() {
+                            selectedMonth = newValue;
+                            // Optional: implement a filtering method here if not done in build
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: DropdownButtonFormField<String>(
+                      value: selectedYear,
+                      decoration: InputDecoration(
+                        labelText: 'Year',
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(8),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                        ),
+                      ),
+                      dropdownColor:
+                          themeProvider.isDarkMode
+                              ? const Color(0xFF2C2C2C)
+                              : Colors.white,
+                      items:
+                          years.map((String year) {
+                            return DropdownMenuItem<String>(
+                              value: year,
+                              child: Text(year),
+                            );
+                          }).toList(),
+                      onChanged: (String? newValue) {
+                        if (newValue != null) {
+                          setState(() {
+                            selectedYear = newValue;
+                          });
+                        }
+                      },
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           const SizedBox(height: 16),
           SizedBox(
             height: 200,
@@ -310,7 +451,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                   ),
                 ),
                 Text(
-                  medicines.isEmpty ? "No data" : "$totalQuantity ",
+                  mostDispensedMedicine.isEmpty ? "No data" : "$totalQuantity ",
                   style: TextStyle(
                     fontSize: fontSize + 3,
                     fontWeight: FontWeight.bold,
@@ -331,7 +472,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ),
           const SizedBox(height: 8),
-          medicines.isEmpty
+          mostDispensedMedicine.isEmpty
               ? Text(
                 "No data available",
                 style: TextStyle(
@@ -344,28 +485,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
               )
               : ListView.builder(
                 shrinkWrap: true,
-                physics: NeverScrollableScrollPhysics(),
-                itemCount: medicines.length,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: mostDispensedMedicine.length,
                 itemBuilder: (context, index) {
-                  final medicine = medicines[index];
+                  final medicine = mostDispensedMedicine[index];
                   Color color =
-                      (index < 10)
+                      index < 10
                           ? customColors[index % customColors.length]
                           : Colors.grey;
 
                   return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 2.0),
+                    padding: const EdgeInsets.symmetric(vertical: 4.0),
                     child: GestureDetector(
                       onTap: () {
                         showDialog(
                           context: context,
                           builder: (BuildContext context) {
                             return AlertDialog(
-                              title: Text(medicine['name']!),
+                              title: Text(medicine['medicine_name']!),
                               content: Text(
-                                "Quantity: ${medicine['quantity']} ",
+                                "Quantity: ${medicine['total_quantity']}",
                               ),
-                              actions: <Widget>[
+                              actions: [
                                 TextButton(
                                   onPressed: () => Navigator.of(context).pop(),
                                   child: const Text('Close'),
@@ -390,7 +531,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                                 ),
                               ),
                               Text(
-                                medicine['name']!,
+                                medicine['medicine_name']!,
                                 style: TextStyle(
                                   fontSize: fontSize,
                                   color:
@@ -402,7 +543,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ],
                           ),
                           Text(
-                            "${medicine['quantity']} pcs",
+                            "${medicine['total_quantity']} pcs",
                             style: TextStyle(
                               fontWeight: FontWeight.bold,
                               color:
@@ -422,20 +563,170 @@ class _DashboardScreenState extends State<DashboardScreen> {
     );
   }
 
+  Widget _buildTotalMedicines(
+    ThemeProvider themeProvider,
+    double fontSize,
+    double screenWidth,
+  ) {
+    final bool isDark = themeProvider.isDarkMode;
+    final Color textColor = isDark ? Colors.white : Colors.black87;
+    final Color bgColor = isDark ? const Color(0xFF1A1A2E) : Colors.white;
+    final Color dividerColor = isDark ? Colors.white12 : Colors.grey.shade200;
+
+    // State to track show all toggle, you need to add this to your StatefulWidget class:
+    // bool _showAllMedicines = false;
+
+    // Medicines to show based on toggle
+    final displayedMedicines =
+        _showAllMedicines
+            ? medicines
+            : medicines.length > 5
+            ? medicines.take(5).toList()
+            : medicines;
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
+      child: Container(
+        decoration: BoxDecoration(
+          color: bgColor,
+          borderRadius: BorderRadius.circular(20),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black12,
+              blurRadius: 12,
+              spreadRadius: 1,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Padding(
+          padding: const EdgeInsets.all(18.0),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    FeatherIcons.box,
+                    color: isDark ? Colors.cyanAccent : Colors.blue,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      "Available Medicines",
+                      style: TextStyle(
+                        fontSize: fontSize + 2,
+                        fontWeight: FontWeight.w600,
+                        color: textColor,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              Column(
+                children:
+                    displayedMedicines.map((med) {
+                      return Column(
+                        children: [
+                          Row(
+                            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                            children: [
+                              Expanded(
+                                child: Text(
+                                  med['name']!,
+                                  style: TextStyle(
+                                    fontSize: fontSize,
+                                    color: textColor,
+                                  ),
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ),
+                              const SizedBox(width: 10),
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 4,
+                                ),
+                                decoration: BoxDecoration(
+                                  color:
+                                      isDark
+                                          ? Colors.white12
+                                          : Colors.blue.shade50.withOpacity(
+                                            0.6,
+                                          ),
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  med['quantity']!,
+                                  style: TextStyle(
+                                    fontSize: fontSize - 1,
+                                    fontWeight: FontWeight.bold,
+                                    color:
+                                        isDark
+                                            ? Colors.cyanAccent
+                                            : Colors.blue.shade700,
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 8),
+                          Divider(color: dividerColor, thickness: 1),
+                          const SizedBox(height: 8),
+                        ],
+                      );
+                    }).toList(),
+              ),
+
+              // Show All / Show Less button
+              if (medicines.length > 5)
+                Center(
+                  child: TextButton(
+                    onPressed: () {
+                      setState(() {
+                        _showAllMedicines = !_showAllMedicines;
+                      });
+                    },
+                    style: TextButton.styleFrom(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 24,
+                        vertical: 8,
+                      ),
+                    ),
+                    child: Text(
+                      _showAllMedicines
+                          ? 'Show Less'
+                          : 'Show All (${medicines.length})',
+                      style: TextStyle(
+                        color: isDark ? Colors.cyanAccent : Colors.blue,
+                        fontSize: fontSize,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
   // UPCOMING SCHEDULE SECTION
   Widget _buildUpcomingSchedule(ThemeProvider themeProvider, double fontSize) {
     final isDark = themeProvider.isDarkMode;
     final backgroundColor =
-        isDark ? const Color(0xFF1A1A2E) : const Color(0xFFE6F1F8);
-    final cardColor = isDark ? const Color(0xFF2D2D3A) : Colors.white;
+        isDark ? const Color(0xFF121212) : const Color(0xFFF7F9FC);
     final textColor = isDark ? Colors.white : Colors.black87;
-    final fadedTextColor = isDark ? Colors.grey[400] : Colors.grey[600];
+    final fadedTextColor = isDark ? Colors.grey[400] : Colors.grey[800];
+    final accentColor = const Color(0xFF2196F3);
 
-    List<Map<String, dynamic>> allSchedules = backendSchedules;
+    final allSchedules = backendSchedules;
 
-    List<Map<String, dynamic>> schedules =
+    final schedules =
         allSchedules.where((schedule) {
-            // Parse the date string into DateTime before using isAfter
             final scheduleDate = DateTime.parse(schedule["date"]);
             return scheduleDate.isAfter(
               DateTime.now().subtract(const Duration(days: 1)),
@@ -447,13 +738,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
             return dateA.compareTo(dateB);
           });
 
-    List<DateTime> weekDays = List.generate(7, (index) {
-      final today = DateTime.now();
-      return today.subtract(Duration(days: today.weekday - 1 - index));
-    });
+    bool isSameDay(DateTime d1, DateTime d2) =>
+        d1.year == d2.year && d1.month == d2.month && d1.day == d2.day;
 
-    bool isSameDay(DateTime d1, DateTime d2) {
-      return d1.year == d2.year && d1.month == d2.month && d1.day == d2.day;
+    String formatTime(String timeString) {
+      try {
+        final parsedTime = DateFormat.jm().parse(timeString);
+        return DateFormat.jm().format(parsedTime);
+      } catch (e) {
+        return timeString;
+      }
     }
 
     List<Map<String, String>> getEventsForDay(DateTime day) {
@@ -463,299 +757,293 @@ class _DashboardScreenState extends State<DashboardScreen> {
             (schedule) => {
               "event": schedule["event"].toString(),
               "description": schedule["description"].toString(),
+              "date": schedule["date"].toString(),
+              "start_time": schedule["start_time"].toString(),
+              "end_time": schedule["end_time"].toString(),
             },
           )
           .toList();
     }
 
-    return StatefulBuilder(
-      builder: (context, setState) {
-        return Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 12.0),
-          child: Container(
+    final events = getEventsForDay(_selectedDay);
+    final displayedEvents = _showAllEvents ? events : events.take(3).toList();
+
+    return SingleChildScrollView(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 12),
+      child: Column(
+        children: [
+          Container(
             decoration: BoxDecoration(
+              color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+              borderRadius: BorderRadius.circular(20),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.blue,
-                  blurRadius: 8,
-                  offset: const Offset(0, 6),
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 10,
+                  offset: const Offset(0, 4),
                 ),
               ],
-              borderRadius: BorderRadius.circular(18),
             ),
-            child: Material(
-              elevation: 0,
-              color: backgroundColor,
-              borderRadius: BorderRadius.circular(18),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    // Real-time Upcoming Schedule with dynamic month
-                    Text(
-                      " ${DateFormat.MMMM().format(DateTime.now())}",
-                      style: TextStyle(
-                        fontSize: fontSize + 2,
-                        fontWeight: FontWeight.w700,
-                        color: textColor,
+            padding: const EdgeInsets.all(10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                TableCalendar(
+                  firstDay: DateTime.utc(2021, 1, 1),
+                  lastDay: DateTime.utc(2026, 12, 31),
+                  focusedDay: _focusedDay,
+                  selectedDayPredicate: (day) => isSameDay(day, _selectedDay),
+                  onDaySelected: (selectedDay, focusedDay) {
+                    setState(() {
+                      _selectedDay = selectedDay;
+                      _focusedDay = focusedDay;
+                    });
+                  },
+                  onPageChanged: (focusedDay) {
+                    setState(() {
+                      _focusedDay = focusedDay;
+                    });
+                  },
+                  calendarFormat: CalendarFormat.week,
+                  availableCalendarFormats: const {CalendarFormat.week: 'Week'},
+                  calendarStyle: CalendarStyle(
+                    todayDecoration: BoxDecoration(
+                      color: accentColor.withOpacity(0.2),
+                      shape: BoxShape.circle,
+                    ),
+                    selectedDecoration: BoxDecoration(
+                      color: accentColor,
+                      shape: BoxShape.circle,
+                    ),
+                    markerDecoration: BoxDecoration(
+                      color: accentColor,
+                      shape: BoxShape.circle,
+                    ),
+                    weekendTextStyle: const TextStyle(color: Colors.red),
+                  ),
+                  headerStyle: HeaderStyle(
+                    formatButtonVisible: false,
+                    titleCentered: true,
+                    titleTextStyle: TextStyle(
+                      fontSize: fontSize + 2,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.black,
+                    ),
+                    leftChevronIcon: const Icon(
+                      Icons.chevron_left,
+                      color: Colors.black,
+                    ),
+                    rightChevronIcon: const Icon(
+                      Icons.chevron_right,
+                      color: Colors.black,
+                    ),
+                  ),
+                  daysOfWeekStyle: DaysOfWeekStyle(
+                    weekdayStyle: const TextStyle(color: Colors.black),
+                    weekendStyle: const TextStyle(color: Colors.redAccent),
+                  ),
+                  eventLoader: getEventsForDay,
+                ),
+                const SizedBox(height: 16),
+                if (events.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 16),
+                    child: Center(
+                      child: Text(
+                        'No events for this day.',
+                        style: TextStyle(
+                          fontSize: fontSize,
+                          color: fadedTextColor,
+                          fontStyle: FontStyle.italic,
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 12),
+                  )
+                else
+                  Column(
+                    children: [
+                      ...displayedEvents.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final event = entry.value;
+                        final isExpanded = _expandedEventIndex == index;
 
-                    // Week day selector in a rounded white card
-                    Container(
-                      margin: const EdgeInsets.symmetric(
-                        vertical: 10,
-                        horizontal: 16,
-                      ),
-                      padding: const EdgeInsets.all(12),
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(20),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.05),
-                            blurRadius: 8,
-                            offset: const Offset(0, 4),
-                          ),
-                        ],
-                      ),
-                      child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children:
-                            weekDays.map((date) {
-                              final isSelected = isSameDay(date, _selectedDay);
-                              return Expanded(
-                                child: GestureDetector(
-                                  onTap:
-                                      () => setState(() => _selectedDay = date),
-                                  child: AnimatedContainer(
-                                    duration: const Duration(milliseconds: 200),
-                                    margin: const EdgeInsets.symmetric(
-                                      horizontal: 4,
+                        return GestureDetector(
+                          onTap: () {
+                            setState(() {
+                              _expandedEventIndex = isExpanded ? -1 : index;
+                            });
+                          },
+                          child: AnimatedContainer(
+                            duration: const Duration(milliseconds: 300),
+                            margin: const EdgeInsets.only(bottom: 14),
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              color:
+                                  isDark
+                                      ? const Color(0xFF2D2D2D)
+                                      : const Color(0xFFBBDEFB),
+                              borderRadius: BorderRadius.circular(14),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.1),
+                                  blurRadius: 4,
+                                  offset: const Offset(0, 1),
+                                ),
+                              ],
+                            ),
+                            child: Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(20),
+                                      decoration: BoxDecoration(
+                                        color:
+                                            isDark
+                                                ? const Color(0xFF1E1E1E)
+                                                : Colors.white,
+                                        borderRadius: BorderRadius.circular(12),
+                                      ),
+                                      child: Icon(
+                                        Icons.event,
+                                        color:
+                                            isDark
+                                                ? Colors.white
+                                                : const Color(0xFF0D47A1),
+                                        size: 32,
+                                      ),
                                     ),
-                                    padding: const EdgeInsets.symmetric(
-                                      vertical: 10,
-                                    ),
-                                    decoration: BoxDecoration(
-                                      color:
-                                          isSelected
-                                              ? Colors.white
-                                              : Colors.blue,
-                                      borderRadius: BorderRadius.circular(12),
-                                      boxShadow:
-                                          isSelected
-                                              ? [
+                                    const SizedBox(width: 10),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 14,
+                                              vertical: 4,
+                                            ),
+                                            margin: const EdgeInsets.only(
+                                              bottom: 12,
+                                            ),
+                                            decoration: BoxDecoration(
+                                              color:
+                                                  isDark
+                                                      ? const Color(0xFF1E1E1E)
+                                                      : Colors.white,
+                                              borderRadius:
+                                                  BorderRadius.circular(12),
+                                              boxShadow: [
                                                 BoxShadow(
-                                                  color: Colors.black26,
+                                                  color: Colors.black
+                                                      .withOpacity(0.1),
                                                   blurRadius: 6,
                                                   offset: const Offset(0, 2),
                                                 ),
-                                              ]
-                                              : [],
-                                    ),
-                                    child: Column(
-                                      mainAxisAlignment:
-                                          MainAxisAlignment.center,
-                                      children: [
-                                        Text(
-                                          DateFormat.d().format(date),
-                                          style: TextStyle(
-                                            fontSize: 14,
-                                            fontWeight: FontWeight.bold,
-                                            color:
-                                                isSelected
-                                                    ? Colors.black
-                                                    : Colors.white,
-                                          ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          DateFormat.E()
-                                              .format(date)
-                                              .toUpperCase(),
-                                          style: TextStyle(
-                                            fontSize: 10,
-                                            fontWeight: FontWeight.w500,
-                                            color:
-                                                isSelected
-                                                    ? Colors.black54
-                                                    : Colors.white70,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                              );
-                            }).toList(),
-                      ),
-                    ),
-
-                    const SizedBox(height: 12),
-
-                    // Events of the selected day
-                    Builder(
-                      builder: (context) {
-                        final events = getEventsForDay(_selectedDay);
-                        return events.isNotEmpty
-                            ? Column(
-                              children:
-                                  events.map((event) {
-                                    return Container(
-                                      margin: const EdgeInsets.only(bottom: 8),
-                                      padding: const EdgeInsets.all(12),
-                                      decoration: BoxDecoration(
-                                        color: cardColor,
-                                        borderRadius: BorderRadius.circular(10),
-                                        boxShadow: const [
-                                          BoxShadow(
-                                            color: Colors.black12,
-                                            blurRadius: 6,
-                                            offset: Offset(0, 3),
-                                          ),
-                                        ],
-                                      ),
-                                      child: Row(
-                                        children: [
-                                          Icon(
-                                            FeatherIcons.clock,
-                                            size: 20,
-                                            color: Colors.blue[700],
-                                          ),
-                                          const SizedBox(width: 15),
-                                          Expanded(
-                                            child: Column(
-                                              crossAxisAlignment:
-                                                  CrossAxisAlignment.start,
-                                              children: [
-                                                Text(
-                                                  event['event']!,
-                                                  style: TextStyle(
-                                                    fontSize: fontSize,
-                                                    fontWeight: FontWeight.bold,
-                                                    color: textColor,
-                                                  ),
-                                                ),
-                                                const SizedBox(height: 4),
-                                                Text(
-                                                  event['description']!,
-                                                  style: TextStyle(
-                                                    fontSize: fontSize - 2,
-                                                    color: fadedTextColor,
-                                                  ),
-                                                ),
                                               ],
                                             ),
-                                          ),
-                                        ],
-                                      ),
-                                    );
-                                  }).toList(),
-                            )
-                            : Center(
-                              child: Text(
-                                'No events for this day.',
-                                style: TextStyle(
-                                  fontSize: fontSize,
-                                  color: fadedTextColor,
-                                ),
-                              ),
-                            );
-                      },
-                    ),
-
-                    const SizedBox(height: 16),
-
-                    // Scrollable Upcoming events
-                    Text(
-                      "All Upcoming Events",
-                      style: TextStyle(
-                        fontSize: fontSize + 2,
-                        fontWeight: FontWeight.w700,
-                        color: textColor,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-
-                    // Scrollable list for all events
-                    SizedBox(
-                      height: 200,
-                      child: SingleChildScrollView(
-                        child: Column(
-                          children:
-                              schedules.map((event) {
-                                return Container(
-                                  margin: const EdgeInsets.only(bottom: 8),
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: cardColor,
-                                    borderRadius: BorderRadius.circular(10),
-                                    boxShadow: const [
-                                      BoxShadow(
-                                        color: Colors.black12,
-                                        blurRadius: 6,
-                                        offset: Offset(0, 3),
-                                      ),
-                                    ],
-                                  ),
-                                  child: Row(
-                                    children: [
-                                      Icon(
-                                        FeatherIcons.calendar,
-                                        size: 20,
-                                        color: Colors.blue[700],
-                                      ),
-                                      const SizedBox(width: 8),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment:
-                                              CrossAxisAlignment.start,
-                                          children: [
-                                            Text(
+                                            child: Text(
                                               DateFormat.yMMMMd().format(
-                                                DateTime.parse(event['date']),
+                                                _selectedDay,
                                               ),
-                                              style: TextStyle(
-                                                fontSize: fontSize - 1,
-                                                fontWeight: FontWeight.bold,
-                                                color: textColor,
-                                              ),
-                                            ),
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              event['event'],
                                               style: TextStyle(
                                                 fontSize: fontSize,
                                                 fontWeight: FontWeight.w600,
                                                 color: textColor,
                                               ),
                                             ),
-                                            Text(
-                                              event['description'],
-                                              style: TextStyle(
-                                                fontSize: fontSize - 2,
-                                                color: fadedTextColor,
-                                              ),
+                                          ),
+                                          Text(
+                                            event['event']!,
+                                            style: TextStyle(
+                                              fontSize: fontSize + 2,
+                                              color: textColor,
                                             ),
-                                          ],
+                                          ),
+                                          const SizedBox(height: 4),
+                                        ],
+                                      ),
+                                    ),
+                                    Icon(
+                                      isExpanded
+                                          ? Icons.expand_less
+                                          : Icons.expand_more,
+                                      color: textColor,
+                                    ),
+                                  ],
+                                ),
+                                if (isExpanded) ...[
+                                  Divider(
+                                    color: Colors.black12,
+                                    thickness: 1,
+                                    height: 20,
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Text(
+                                    event['description']!,
+                                    style: TextStyle(
+                                      fontSize: fontSize,
+                                      color: fadedTextColor,
+                                    ),
+                                  ),
+                                  const SizedBox(height: 12),
+                                  Row(
+                                    children: [
+                                      Icon(
+                                        Icons.access_time,
+                                        size: 16,
+                                        color: fadedTextColor,
+                                      ),
+                                      const SizedBox(width: 6),
+                                      Text(
+                                        '${formatTime(event['start_time']!)} - ${formatTime(event['end_time']!)}',
+                                        style: TextStyle(
+                                          fontSize: fontSize - 2,
+                                          color: fadedTextColor,
                                         ),
                                       ),
                                     ],
                                   ),
-                                );
-                              }).toList(),
+                                ],
+                              ],
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                      if (events.length > 3)
+                        Center(
+                          child: TextButton(
+                            onPressed: () {
+                              setState(() {
+                                _showAllEvents = !_showAllEvents;
+                              });
+                            },
+                            style: TextButton.styleFrom(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: 24,
+                                vertical: 8,
+                              ),
+                            ),
+                            child: Text(
+                              _showAllEvents
+                                  ? 'Show Less'
+                                  : 'Show All (${events.length})',
+                              style: TextStyle(
+                                color: accentColor,
+                                fontSize: fontSize,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
+                    ],
+                  ),
+              ],
             ),
           ),
-        );
-      },
+        ],
+      ),
     );
   }
 
@@ -770,33 +1058,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
       child: Column(
         children: [
           Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              // First button: Medicine Request
-              Expanded(
-                child: _buildQuickActionButton(
-                  themeProvider,
-                  fontSize,
-                  'Request',
-                  Icons.note_add_outlined,
-                  AcceptedScreen(parsedRequests: []),
-                ),
-              ),
-              const SizedBox(width: 20),
-              // Second button: Medicine List
-              Expanded(
-                child: _buildQuickActionButton(
-                  themeProvider,
-                  fontSize,
-                  'Medicine List',
-                  Icons.medical_services,
-                  MedicineListScreen(medicineList: []),
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
               // Third button: Dispensed
@@ -804,9 +1065,9 @@ class _DashboardScreenState extends State<DashboardScreen> {
                 child: _buildQuickActionButton(
                   themeProvider,
                   fontSize,
-                  'Dispensed',
-                  Icons.local_pharmacy_outlined,
-                  MostDispensedScreen(),
+                  'Medicine List',
+                  Icons.medical_services,
+                  MedicineListScreen(),
                 ),
               ),
             ],
@@ -834,16 +1095,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
         margin: const EdgeInsets.symmetric(vertical: 8),
         padding: const EdgeInsets.symmetric(vertical: 24),
         decoration: BoxDecoration(
-          color:
-              themeProvider.isDarkMode
-                  ? Colors.grey[900]
-                  : Colors.blue.shade300,
+          color: themeProvider.isDarkMode ? Colors.grey[900] : Colors.white,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [
             BoxShadow(
-              color: Colors.blue.shade900,
+              color: Colors.black12.withOpacity(0.1),
               blurRadius: 10,
-              offset: const Offset(0, 10),
+              offset: const Offset(0, 1),
             ),
           ],
         ),
@@ -863,134 +1121,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             ),
           ],
         ),
-      ),
-    );
-  }
-
-  // Most Dispensed Medicines Section
-  Widget _buildMostDispensedMedicines(
-    ThemeProvider themeProvider,
-    double fontSize,
-  ) {
-    final bool isDark = themeProvider.isDarkMode;
-    final Color textColor = isDark ? Colors.white : Colors.black87;
-    final Color bgColor = isDark ? const Color(0xFF1A1A2E) : Colors.white;
-    final Color dividerColor = isDark ? Colors.white12 : Colors.grey.shade200;
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 20.0, vertical: 12.0),
-      child: LayoutBuilder(
-        builder: (context, constraints) {
-          return Container(
-            decoration: BoxDecoration(
-              color: bgColor,
-              borderRadius: BorderRadius.circular(16),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.blue.shade900,
-                  blurRadius: 8,
-                  offset: const Offset(0, 8),
-                ),
-              ],
-            ),
-            child: ConstrainedBox(
-              constraints: BoxConstraints(maxHeight: constraints.maxHeight),
-              child: Padding(
-                padding: const EdgeInsets.all(18.0),
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      // Title
-                      Row(
-                        children: [
-                          Icon(
-                            FeatherIcons.activity,
-                            color: isDark ? Colors.cyanAccent : Colors.blue,
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: Text(
-                              "Most Dispensed Medicines",
-                              style: TextStyle(
-                                fontSize: fontSize + 2,
-                                fontWeight: FontWeight.w600,
-                                color: textColor,
-                                overflow: TextOverflow.ellipsis,
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 16),
-
-                      // Medicine List
-                      Column(
-                        children:
-                            mostDispensedMedicine
-                                .map(
-                                  (med) => Column(
-                                    children: [
-                                      Row(
-                                        mainAxisAlignment:
-                                            MainAxisAlignment.spaceBetween,
-                                        children: [
-                                          Expanded(
-                                            child: Text(
-                                              med['medicine_name']!,
-                                              style: TextStyle(
-                                                fontSize: fontSize,
-                                                color: textColor,
-                                              ),
-                                              overflow: TextOverflow.ellipsis,
-                                            ),
-                                          ),
-                                          const SizedBox(width: 10),
-                                          Container(
-                                            padding: const EdgeInsets.symmetric(
-                                              horizontal: 10,
-                                              vertical: 4,
-                                            ),
-                                            decoration: BoxDecoration(
-                                              color:
-                                                  isDark
-                                                      ? Colors.white12
-                                                      : Colors.grey.shade100,
-                                              borderRadius:
-                                                  BorderRadius.circular(8),
-                                            ),
-                                            child: Text(
-                                              med['total_quantity']!,
-                                              style: TextStyle(
-                                                fontSize: fontSize - 1,
-                                                fontWeight: FontWeight.bold,
-                                                color:
-                                                    isDark
-                                                        ? Colors.cyanAccent
-                                                        : Colors.blueAccent,
-                                              ),
-                                            ),
-                                          ),
-                                        ],
-                                      ),
-                                      const SizedBox(height: 8),
-                                      Divider(
-                                        color: dividerColor,
-                                        thickness: 1,
-                                      ),
-                                      const SizedBox(height: 8),
-                                    ],
-                                  ),
-                                )
-                                .toList(),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          );
-        },
       ),
     );
   }

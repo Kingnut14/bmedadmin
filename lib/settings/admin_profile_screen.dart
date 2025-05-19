@@ -1,7 +1,8 @@
+import 'package:bmedv2/screen/menu_screen.dart';
 import 'package:flutter/material.dart';
 import 'Help_screen.dart';
 import 'privacy_policy_screen.dart';
-import 'setttings_screen.dart';
+
 import 'profile_screen.dart';
 
 class AdminProfileScreen extends StatefulWidget {
@@ -13,9 +14,9 @@ class AdminProfileScreen extends StatefulWidget {
 
 class _AdminProfileScreenState extends State<AdminProfileScreen> {
   void _logout() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(content: Text('Logged out successfully')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(const SnackBar(content: Text('Logged out successfully')));
   }
 
   @override
@@ -73,7 +74,11 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
                         child: CircleAvatar(
                           radius: 16,
                           backgroundColor: Colors.blue,
-                          child: const Icon(Icons.edit, size: 16, color: Colors.white),
+                          child: const Icon(
+                            Icons.edit,
+                            size: 16,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ],
@@ -101,16 +106,34 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 20),
               children: [
                 _buildModernTile(Icons.person_outline, "Profile", () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const ProfileScreen()));
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const ProfileScreen()),
+                  );
                 }),
-                _buildModernTile(Icons.privacy_tip_outlined, "Privacy Policy", () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const PrivacyPolicyScreen()));
-                }),
+                _buildModernTile(
+                  Icons.privacy_tip_outlined,
+                  "Privacy Policy",
+                  () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const PrivacyPolicyScreen(),
+                      ),
+                    );
+                  },
+                ),
                 _buildModernTile(Icons.settings_outlined, "Settings", () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const SettingsScreen()));
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const MenuScreen()),
+                  );
                 }),
                 _buildModernTile(Icons.help_outline, "Help", () {
-                  Navigator.push(context, MaterialPageRoute(builder: (_) => const HelpScreen()));
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const HelpScreen()),
+                  );
                 }),
                 _buildModernTile(Icons.logout, "Logout", _logout),
               ],
@@ -127,7 +150,10 @@ class _AdminProfileScreenState extends State<AdminProfileScreen> {
       margin: const EdgeInsets.symmetric(vertical: 8),
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
       child: ListTile(
-        contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+        contentPadding: const EdgeInsets.symmetric(
+          horizontal: 20,
+          vertical: 12,
+        ),
         leading: Icon(icon, color: Colors.blueAccent, size: 26),
         title: Text(
           title,

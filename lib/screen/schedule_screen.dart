@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'package:bmedv2/screen/menu_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
 import 'package:bmedv2/widget/custom_app_bar.dart';
@@ -30,7 +31,6 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
       final response = await http.get(
         Uri.parse('http://127.0.0.1:5566/schedule'),
       );
-      print(response.body); // Debugging: check raw response
 
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -97,11 +97,16 @@ class _ScheduleScreenState extends State<ScheduleScreen> {
     final isDarkMode = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      backgroundColor:
+          isDarkMode
+              ? const Color(0xFF121212)
+              : const Color(0xFFBBDEFB), // Example colors
       appBar: CustomAppBar(
         title: "Barangay Announcements",
         isDarkMode: isDarkMode,
         fontSize: 18,
       ),
+      drawer: const MenuScreen(),
       body:
           isLoading
               ? Center(child: CircularProgressIndicator())
